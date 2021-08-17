@@ -77,6 +77,9 @@ ICS03_ConnectionOpenInit(
                 outcome |-> "Ics03ConnectionOpenInitOk"
             ]
 
+(*
+    @type: (CHAIN, Str, Int, Int, HEIGHT, Str, Int, Int) => RESULT;
+*)
 ICS03_ConnectionOpenTry(
     chain,
     chainId,
@@ -235,6 +238,9 @@ ICS03_ConnectionOpenTry(
                             outcome |-> "Ics03ConnectionOpenTryOk"
                         ]
 
+(*
+    @type: (CHAIN, Str, Int, HEIGHT, Str, Int) => RESULT;
+*)
 ICS03_ConnectionOpenAck(
     chain,
     chainId,
@@ -341,6 +347,9 @@ ICS03_ConnectionOpenAck(
                             outcome |-> "Ics03ConnectionOpenAckOk"
                         ]
 
+(*
+    @type: (CHAIN, Str, Int, HEIGHT, Str, Int) => RESULT;
+*)
 ICS03_ConnectionOpenConfirm(
     chain,
     chainId,

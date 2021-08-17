@@ -29,7 +29,7 @@ EXTENDS ICS02, ICS03
     ];
 *)
 (* @typeAlias: CHAIN = [
-        height: Set(HEIGHT),
+        height: HEIGHT,
         clients: Int -> CLIENT,
         clientIdCounter: Int,
         connections: Int -> CONNECTION,
@@ -526,7 +526,9 @@ ConnectionOpenConfirmAction(chainId) ==
 
 Init ==
     \* create a client and a connection with none values
-    LET clientNone == [
+    LET 
+    \* @type: CLIENT;
+    clientNone == [
         heights |-> {}
     ] IN
     LET connectionNone == [
@@ -539,7 +541,9 @@ Init ==
         counterpartyConnectionId |-> ConnectionIdNone
     ] IN
     \* create an empty chain
-    LET emptyChain == [
+    LET 
+    \* @type: CHAIN;
+    emptyChain == [
         height |-> 1,
         clients |-> [clientId \in ClientIds |-> clientNone],
         clientIdCounter |-> 0,
@@ -569,10 +573,10 @@ Next ==
 
 (******************************** Invariants *********************************)
 
-TypeOK ==
-    /\ chains \in Chains
-    /\ action \in Actions
-    /\ actionOutcome \in ActionOutcomes
+\* TypeOK ==
+\*     /\ chains \in Chains
+\*     /\ action \in Actions
+\*     /\ actionOutcome \in ActionOutcomes
 
 \* the model never erros
 ModelNeverErrors ==
