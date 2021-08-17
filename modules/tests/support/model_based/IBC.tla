@@ -23,7 +23,7 @@ EXTENDS ICS02, ICS03
         chainId: Str,
         clientId: Int,
         connectionId: Int,
-        counterpartyChainId: Int,
+        counterpartyChainId: Str,
         counterpartyClientId: Int,
         counterpartyConnectionId: Int
     ];
