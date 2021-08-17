@@ -9,8 +9,7 @@ EXTENDS Integers, FiniteSets
 *)
 (* @typeAlias: HEADER = [
         chainId: Str,
-        height: HEIGHT,
-        action: 
+        height: HEIGHT
     ];
 *)
 (* @typeAlias: CHAIN = [
@@ -65,12 +64,15 @@ ICS02_GetClient(clients, clientId) ==
 \* check if `clientId` exists
 \* @type: ((Int -> CLIENT), Int) => Bool;
 ICS02_ClientExists(clients, clientId) ==
-    ICS02_GetClient(clients, clientId).heights /= AsSetInt({})
+    ICS02_GetClient(clients, clientId).heights /= {}
 
 \* update `clientId`'s data
 \* @type: ((Int -> CLIENT), Int, CLIENT) => (Int -> CLIENT);
 ICS02_SetClient(clients, clientId, client) ==
     [clients EXCEPT ![clientId] = client]
+
+AdvanceChainHeight(chain) == 
+    [chain EXCEPT ![height] = [chain.height EXCEPT ![revisionHeight] = chain.height.revisionHeight + 1]]
 
 ICS02_CreateClient(chain, chainId, header) ==
     \* check if the client exists (it shouldn't)
@@ -78,9 +80,13 @@ ICS02_CreateClient(chain, chainId, header) ==
         \* if the client to be created already exists,
         \* then there's an error in the model
         outcome' = "ModelError"
+        chains' = chains
+        headers' = {}
     ELSE
+        LET chain = AdvanceChainHeight(chain) IN
         outcome' = "Ics02CreateOk"
         chains' = [chains EXCEPT ![chainId] = chain]
+        headers' = {[ chainId |-> chainId, height |-> chain.height ]}
 
 Next ==
     \E header in headers:
