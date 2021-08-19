@@ -65,4 +65,6 @@ ICS03UninitializedConnectionTest ==
 \* ICS03ConnectionOpenConfirm tests
 ICS03ConnectionOpenConfirmOKTest ==
     /\ actionOutcome = "Ics03ConnectionOpenConfirmOk"
+
+Neg == ~ICS03ConnectionOpenTryOKTest
 ===============================================================================

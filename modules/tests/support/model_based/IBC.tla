@@ -4,6 +4,8 @@ EXTENDS ICS02, ICS03
 
 \* ids of existing chains
 CONSTANT ChainIds
+\* ids of chains that will actually run code
+CONSTANT ActiveChainIds
 \* max height which chains can reach
 CONSTANT MaxRevisionHeight
 ASSUME MaxRevisionHeight >= 0
@@ -537,7 +539,7 @@ Init ==
 
 Next ==
     \* select a chain id
-    \E chainId \in ChainIds:
+    \E chainId \in ActiveChainIds:
         \* perform action on chain if the model constant `MaxChainHeight` allows
         \* it
         \* The line below checks if chains[chainId].height < MaxHeight
