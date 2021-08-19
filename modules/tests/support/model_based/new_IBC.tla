@@ -12,6 +12,10 @@ EXTENDS Integers, FiniteSets
         height: HEIGHT
     ];
 *)
+(* @typeAlias: CLIENT = [
+        heights: Set(HEIGHT)
+    ];
+*)
 (* @typeAlias: CHAIN = [
         height: HEIGHT,
         clients: Int -> CLIENT,
@@ -24,16 +28,14 @@ EXTENDS Integers, FiniteSets
 EXTypeAliases = TRUE
 
 VARIABLES
-    \* This is only ever intended to have one header in it.
-    \* The set is being used as sort of an Option type.
-    \* @type: Set(HEADER);
-    headers,
+    (* @type: [
+            headers: Set(HEADER),
+            chains: Str -> CHAIN,
+            outcome: Str
+        ]
+    *)
+    state
 
-    \* @type: Str -> CHAIN;
-    chains,
-
-    \* @type: Str;
-    outcome
 (*
 
 PLAN:
@@ -53,8 +55,6 @@ OtherChainId(chainId) ==
     ELSE
         "chainA"
 
-CreateClient(chain, header) ==
-    
 
 \* retrieves `clientId`'s data
 \* @type: ((Int -> CLIENT), Int) => CLIENT;
@@ -81,12 +81,49 @@ ICS02_CreateClient(chain, chainId, header) ==
         \* then there's an error in the model
         outcome' = "ModelError"
         chains' = chains
-        headers' = {}
+        headers' = headers
     ELSE
         LET chain = AdvanceChainHeight(chain) IN
         outcome' = "Ics02CreateOk"
         chains' = [chains EXCEPT ![chainId] = chain]
-        headers' = {[ chainId |-> chainId, height |-> chain.height ]}
+        headers' = {[
+            chainId |-> chainId,
+            height |-> chain.height 
+        ]}
+
+ICS02_UpdateClient(chain, chainId, header) ==
+    \* check if the client exists
+    IF ~ICS02_ClientExists(chain.clients, clientId) THEN
+        \* if the client does not exist, then set an error outcome
+        state' = [state EXCEPT
+            !.outcome = "Ics02ClientNotFound"
+        ]
+    ELSE
+        \* if the client exists, check its height
+        LET client == ICS02_GetClient(chain.clients, clientId) IN
+        LET highestHeight == FindMaxHeight(client.heights) IN
+        IF ~HigherRevisionHeight(height, highestHeight) THEN
+            \* if the client's new height is not at the same revision number and a higher
+            \* block height than the highest client height, then set an error outcome
+            state' = [state EXCEPT
+                !.outcome = "Ics02HeaderVerificationFailure"
+            ]
+        ELSE
+            \* if the client's new height is higher than the highest client
+            \* height, then update the client
+            LET updatedClient == [client EXCEPT
+                !.heights = client.heights \union {height}
+            ] IN
+            \* return result with updated state
+            [
+                clients |-> ICS02_SetClient(
+                    chain.clients,
+                    clientId,
+                    updatedClient
+                ),
+                action |-> action_,
+                outcome |-> "Ics02UpdateOk"
+            ]
 
 Next ==
     \E header in headers:
