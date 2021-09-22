@@ -127,39 +127,34 @@ impl ClientDef for TendermintClient {
             }
         }
 
-        // If headear in the middle check monotonicity w.r.t. the left header
-        match maybe_prev_consensus_state(ctx, &client_id, header.height(), header.trusted_height)? {
-            Some(cs) => {
-                if untrustes_state_time <= cs.timestamp {
-                    return Err(Ics02Error::implementation_specific());
-                    // Err(VerificationError::non_monotonic_bft_time(
-                    //     untrusted_header_time,
-                    //     trusted_header_time,
-                    // ))
-                }
-                // verdict!(self
-                //     .predicates
-                //     .is_monotonic_bft_time(untrusted.signed_header.header.time, cs.header_time,));
+        // If header in the middle check monotonicity w.r.t. the left header
+        if let Some(cs) =
+            maybe_prev_consensus_state(ctx, &client_id, header.height(), header.trusted_height)?
+        {
+            if untrustes_state_time <= cs.timestamp {
+                return Err(Ics02Error::implementation_specific());
+                // Err(VerificationError::non_monotonic_bft_time(
+                //     untrusted_header_time,
+                //     trusted_header_time,
             }
-            None => (),
-        };
+            // verdict!(self
+            //     .predicates
+            //     .is_monotonic_bft_time(untrusted.signed_header.header.time, cs.header_time,));
+        }
 
-        // If headear in the middle check monotonicity w.r.t. the right header
-        match maybe_next_consensus_state(
+        // If header in the middle check monotonicity w.r.t. the right header
+        if let Some(cs) = maybe_next_consensus_state(
             ctx,
             &client_id,
             header.height(),
             client_state.latest_height(),
         )? {
-            Some(cs) => {
-                if untrustes_state_time >= cs.timestamp {
-                    return Err(Ics02Error::implementation_specific());
-                }
-                // verdict!(self
-                //     .predicates
-                //     .is_monotonic_bft_time(cs.header_time,untrusted.signed_header.header.time,));
+            if untrustes_state_time >= cs.timestamp {
+                return Err(Ics02Error::implementation_specific());
             }
-            None => (),
+            // verdict!(self
+            //     .predicates
+            //     .is_monotonic_bft_time(cs.header_time,untrusted.signed_header.header.time,));
         };
 
         Ok((
@@ -319,9 +314,8 @@ fn maybe_prev_consensus_state(
     let h = high_height.decrement()?;
 
     while h >= low_height {
-        match maybe_read_consensus_state(ctx, &client_id, h)? {
-            Some(cs) => return Ok(Some(cs)),
-            None => (),
+        if let Some(cs) = maybe_read_consensus_state(ctx, &client_id, h)? {
+            return Ok(Some(cs));
         };
         h.decrement()?;
     }
@@ -342,10 +336,9 @@ fn maybe_next_consensus_state(
     let h = low_height.increment();
 
     while h <= high_height {
-        match maybe_read_consensus_state(ctx, &client_id, h)? {
-            Some(cs) => return Ok(Some(cs)),
-            None => (),
-        };
+        if let Some(cs) = maybe_read_consensus_state(ctx, &client_id, h)? {
+            return Ok(Some(cs));
+        }
         h.increment();
     }
 

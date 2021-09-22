@@ -103,11 +103,16 @@ impl ClientState {
 
     pub fn with_header(self, h: Header) -> Self {
         // TODO: Clarify which fields should update.
-        ClientState {
-            latest_height: self
-                .latest_height
-                .with_revision_height(u64::from(h.signed_header.header.height)),
-            ..self
+
+        if u64::from(h.signed_header.header.height) > self.latest_height.revision_height {
+            ClientState {
+                latest_height: self
+                    .latest_height
+                    .with_revision_height(u64::from(h.signed_header.header.height)),
+                ..self
+            }
+        } else {
+            ClientState { ..self }
         }
     }
 

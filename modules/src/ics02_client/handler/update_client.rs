@@ -86,7 +86,7 @@ mod tests {
     use crate::ics02_client::client_consensus::AnyConsensusState;
     use crate::ics02_client::client_state::{AnyClientState, ClientState};
     use crate::ics02_client::client_type::ClientType;
-    //use crate::ics02_client::error::{Error, ErrorDetail};
+    use crate::ics02_client::error::{Error, ErrorDetail};
     use crate::ics02_client::handler::dispatch;
     use crate::ics02_client::handler::ClientResult::Update;
     use crate::ics02_client::header::{AnyHeader, Header};
@@ -96,7 +96,8 @@ mod tests {
     use crate::mock::client_state::MockClientState;
     use crate::mock::context::MockContext;
     use crate::mock::header::MockHeader;
-    use crate::mock::host::{HostBlock, HostType};
+    use crate::mock::host::HostType;
+    //use crate::mock::host::{HostBlock, HostType};
     use crate::test_utils::get_dummy_account_id;
     use crate::timestamp::Timestamp;
     use crate::Height;
@@ -458,9 +459,11 @@ mod tests {
     }
 
     #[test]
-    fn test_update_synthetic_tendermint_client_duplicate_height_frozen() {
+    fn test_update_synthetic_tendermint_client_lower_height() {
         let client_id = ClientId::new(ClientType::Tendermint, 0).unwrap();
         let client_height = Height::new(1, 20);
+
+        let client_update_height = Height::new(1, 19);
 
         let chain_start_height = Height::new(1, 11);
 
@@ -472,20 +475,28 @@ mod tests {
         )
         .with_client_parametrized(
             &client_id,
+            client_update_height,
+            Some(ClientType::Tendermint), // The target host chain (B) is synthetic TM.
+            Some(client_update_height),
+        )
+        .with_client_parametrized(
+            &client_id,
             client_height,
             Some(ClientType::Tendermint), // The target host chain (B) is synthetic TM.
             Some(client_height),
         );
 
-        let signer = get_dummy_account_id();
-
-        let block_ref = HostBlock::generate_block(
+        let ctx_b = MockContext::new(
             ChainId::new("mockgaiaB".to_string(), 1),
             HostType::SyntheticTendermint,
-            client_height.revision_height,
+            5,
+            client_height,
         );
 
-        let latest_header: AnyHeader = Some(block_ref).map(Into::into).unwrap();
+        let signer = get_dummy_account_id();
+
+        let block_ref = ctx_b.host_block(client_update_height);
+        let latest_header: AnyHeader = block_ref.cloned().map(Into::into).unwrap();
 
         let msg = MsgUpdateAnyClient {
             client_id: client_id.clone(),
@@ -511,8 +522,8 @@ mod tests {
                 match result {
                     Update(upd_res) => {
                         assert_eq!(upd_res.client_id, client_id);
-                        assert!(upd_res.client_state.is_frozen());
-                        assert_ne!(
+                        assert!(!upd_res.client_state.is_frozen());
+                        assert_eq!(
                             upd_res.client_state,
                             ctx.latest_client_states(&client_id).clone()
                         );
@@ -520,58 +531,6 @@ mod tests {
                     }
                     _ => panic!("update handler result has incorrect type"),
                 }
-            }
-            Err(err) => {
-                panic!("unexpected error: {:?}", err);
-            }
-        }
-    }
-
-    #[test]
-    fn test_update_synthetic_tendermint_client_lower_height() {
-        let client_id = ClientId::new(ClientType::Tendermint, 0).unwrap();
-        let client_height = Height::new(1, 20);
-
-        let client_update_height = Height::new(1, 19);
-
-        let chain_start_height = Height::new(1, 11);
-
-        let ctx = MockContext::new(
-            ChainId::new("mockgaiaA".to_string(), 1),
-            HostType::Mock,
-            5,
-            chain_start_height,
-        )
-        .with_client_parametrized(
-            &client_id,
-            client_height,
-            Some(ClientType::Tendermint), // The target host chain (B) is synthetic TM.
-            Some(client_height),
-        );
-
-        let ctx_b = MockContext::new(
-            ChainId::new("mockgaiaB".to_string(), 1),
-            HostType::SyntheticTendermint,
-            5,
-            client_height,
-        );
-
-        let signer = get_dummy_account_id();
-
-        let block_ref = ctx_b.host_block(client_update_height);
-        let latest_header: AnyHeader = block_ref.cloned().map(Into::into).unwrap();
-
-        let msg = MsgUpdateAnyClient {
-            client_id,
-            header: latest_header,
-            signer,
-        };
-
-        let output = dispatch(&ctx, ClientMsg::UpdateClient(msg));
-
-        match output {
-            Ok(_) => {
-                panic!("update handler result has incorrect type");
             }
             Err(err) => {
                 // assert_eq!(err, Error::header_verification_failure);
