@@ -98,6 +98,7 @@ impl ClientDef for TendermintClient {
 
         let options = client_state.light_client_options()?;
 
+        let untrustes_state_time = untrusted_state.signed_header.header.time;
         match self
             .verifier
             .verify(untrusted_state, trusted_state, &options, Time::now())
@@ -125,6 +126,37 @@ impl ClientDef for TendermintClient {
                 return Ok((client_state.with_set_frozen(header.height()), cs));
             }
         }
+
+        // If headear in the middle check monotonicity w.r.t. the left header 
+        match maybe_prev_consensus_state(ctx, &client_id, header.height(), header.trusted_height)? {
+            Some(cs) => {
+                if untrustes_state_time <= cs.timestamp {  
+                    return Err(Ics02Error::implementation_specific())
+                    // Err(VerificationError::non_monotonic_bft_time(
+                    //     untrusted_header_time,
+                    //     trusted_header_time,
+                    // ))
+                }
+                // verdict!(self
+                //     .predicates
+                //     .is_monotonic_bft_time(untrusted.signed_header.header.time, cs.header_time,));
+                
+            }
+            None => (),
+        };
+
+        // If headear in the middle check monotonicity w.r.t. the right header 
+        match maybe_next_consensus_state(ctx, &client_id, header.height(), client_state.latest_height())? {
+            Some(cs) => {
+                if untrustes_state_time >= cs.timestamp {  
+                    return Err(Ics02Error::implementation_specific())
+                }
+                 // verdict!(self
+                //     .predicates
+                //     .is_monotonic_bft_time(cs.header_time,untrusted.signed_header.header.time,));
+            }
+            None => (),
+        };
 
         Ok((
             client_state.with_header(header.clone()),
@@ -268,4 +300,47 @@ fn maybe_read_consensus_state(
             .ok_or_else(|| Ics02Error::client_args_type_mismatch(ClientType::Tendermint))
         })
         .transpose()
+}
+
+
+fn maybe_prev_consensus_state(  ctx: &dyn ClientReader,
+    client_id: &ClientId,
+    high_height: Height,
+    low_height: Height,
+) -> Result<Option<ConsensusState>, Ics02Error> {
+    
+    if high_height <= low_height { return Ok(None);}
+   
+    let h = high_height.decrement()?;
+
+     while h >= low_height{  
+        match maybe_read_consensus_state(ctx, &client_id, h)? {
+                Some(cs) => return Ok(Some(cs)),
+                None => (), 
+        };
+        h.decrement()?;
+    };
+
+    Ok(None)
+}
+
+fn maybe_next_consensus_state(  ctx: &dyn ClientReader,
+    client_id: &ClientId,
+    low_height: Height,
+    high_height: Height,
+) -> Result<Option<ConsensusState>, Ics02Error> {
+    
+    if high_height <= low_height { return Ok(None);}
+   
+    let h = low_height.increment();
+
+     while h <= high_height{  
+        match maybe_read_consensus_state(ctx, &client_id, h)? {
+                Some(cs) => return Ok(Some(cs)),
+                None => (), 
+        };
+        h.increment();
+    };
+
+    Ok(None)
 }
