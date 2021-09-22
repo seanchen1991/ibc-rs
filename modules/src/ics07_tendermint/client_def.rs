@@ -99,33 +99,6 @@ impl ClientDef for TendermintClient {
         let options = client_state.light_client_options()?;
 
         let untrustes_state_time = untrusted_state.signed_header.header.time;
-        match self
-            .verifier
-            .verify(untrusted_state, trusted_state, &options, Time::now())
-        {
-            Verdict::Success => {}
-            Verdict::NotEnoughTrust(voting_power_tally) => {
-                return Err(Error::not_enough_trusted_vals_signed(format!(
-                    "voting power tally: {}",
-                    voting_power_tally
-                ))
-                .into())
-            }
-            Verdict::Invalid(detail) => {
-                return Err(Ics02Error::tendermint_handler_error(
-                    Error::verification_error(detail),
-                ))
-            }
-        }
-
-        // If the header has verified, but its corresponding consensus state
-        // differs from the existing consensus state for that height, freeze the
-        // client and return the installed consensus state.
-        if let Some(cs) = existing_consensus_state {
-            if cs != header_consensus_state {
-                return Ok((client_state.with_set_frozen(header.height()), cs));
-            }
-        }
 
         // If header in the middle check monotonicity w.r.t. the left header
         if let Some(cs) =
@@ -156,6 +129,34 @@ impl ClientDef for TendermintClient {
             //     .predicates
             //     .is_monotonic_bft_time(cs.header_time,untrusted.signed_header.header.time,));
         };
+
+        match self
+            .verifier
+            .verify(untrusted_state, trusted_state, &options, Time::now())
+        {
+            Verdict::Success => {}
+            Verdict::NotEnoughTrust(voting_power_tally) => {
+                return Err(Error::not_enough_trusted_vals_signed(format!(
+                    "voting power tally: {}",
+                    voting_power_tally
+                ))
+                .into())
+            }
+            Verdict::Invalid(detail) => {
+                return Err(Ics02Error::tendermint_handler_error(
+                    Error::verification_error(detail),
+                ))
+            }
+        }
+
+        // If the header has verified, but its corresponding consensus state
+        // differs from the existing consensus state for that height, freeze the
+        // client and return the installed consensus state.
+        if let Some(cs) = existing_consensus_state {
+            if cs != header_consensus_state {
+                return Ok((client_state.with_set_frozen(header.height()), cs));
+            }
+        }
 
         Ok((
             client_state.with_header(header.clone()),
