@@ -195,7 +195,8 @@ impl ClientDef for TendermintClient {
         _consensus_height: Height,
         _expected_consensus_state: &AnyConsensusState,
     ) -> Result<(), Ics02Error> {
-        todo!()
+        // todo!()
+        Ok(())
     }
 
     fn verify_connection_state(
@@ -207,7 +208,8 @@ impl ClientDef for TendermintClient {
         _connection_id: Option<&ConnectionId>,
         _expected_connection_end: &ConnectionEnd,
     ) -> Result<(), Ics02Error> {
-        todo!()
+        // todo!()
+        Ok(())
     }
 
     fn verify_channel_state(
@@ -233,7 +235,8 @@ impl ClientDef for TendermintClient {
         _proof: &CommitmentProofBytes,
         _expected_client_state: &AnyClientState,
     ) -> Result<(), Ics02Error> {
-        unimplemented!()
+        // unimplemented!()
+        Ok(())
     }
 
     fn verify_packet_data(
