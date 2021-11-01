@@ -235,6 +235,11 @@ impl TryFrom<RawClientState> for ClientState {
 
 impl From<ClientState> for RawClientState {
     fn from(value: ClientState) -> Self {
+        let proof_spec = if value.chain_id.as_str().starts_with("basecoin") {
+            ProofSpecs::basecoin()
+        } else {
+            ProofSpecs::cosmos()
+        };
         RawClientState {
             chain_id: value.chain_id.to_string(),
             trust_level: Some(value.trust_level.into()),
@@ -243,7 +248,7 @@ impl From<ClientState> for RawClientState {
             max_clock_drift: Some(value.max_clock_drift.into()),
             frozen_height: Some(value.frozen_height.into()),
             latest_height: Some(value.latest_height.into()),
-            proof_specs: ProofSpecs::cosmos().into(),
+            proof_specs: proof_spec.into(),
             allow_update_after_expiry: value.allow_update.after_expiry,
             allow_update_after_misbehaviour: value.allow_update.after_misbehaviour,
             upgrade_path: value.upgrade_path,
