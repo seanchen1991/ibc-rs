@@ -26,26 +26,27 @@ impl ProofSpecs {
 
     /// Returns the specification for Cosmos-SDK proofs
     pub fn basecoin() -> Self {
+        let spec = ProofSpec {
+            leaf_spec: Some(LeafOp {
+                hash: HashOp::Sha256.into(),
+                prehash_key: HashOp::NoHash.into(),
+                prehash_value: HashOp::NoHash.into(),
+                length: LengthOp::NoPrefix.into(),
+                prefix: [0; 64].to_vec(),
+            }),
+            inner_spec: Some(InnerSpec {
+                child_order: vec![0, 1, 2],
+                child_size: 32,
+                min_prefix_length: 0,
+                max_prefix_length: 64,
+                empty_child: vec![0, 32],
+                hash: HashOp::Sha256.into(),
+            }),
+            max_depth: 0,
+            min_depth: 0,
+        };
         Self {
-            specs: vec![ProofSpec {
-                leaf_spec: Some(LeafOp {
-                    hash: HashOp::Sha256.into(),
-                    prehash_key: HashOp::NoHash.into(),
-                    prehash_value: HashOp::NoHash.into(),
-                    length: LengthOp::NoPrefix.into(),
-                    prefix: [0; 64].to_vec(),
-                }),
-                inner_spec: Some(InnerSpec {
-                    child_order: vec![0, 1, 2],
-                    child_size: 32,
-                    min_prefix_length: 0,
-                    max_prefix_length: 64,
-                    empty_child: vec![0, 32],
-                    hash: HashOp::Sha256.into(),
-                }),
-                max_depth: 0,
-                min_depth: 0,
-            }],
+            specs: vec![spec.clone(), spec],
         }
     }
 }
