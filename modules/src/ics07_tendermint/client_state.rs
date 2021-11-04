@@ -29,7 +29,7 @@ pub struct ClientState {
     pub max_clock_drift: Duration,
     pub frozen_height: Height,
     pub latest_height: Height,
-    // pub proof_specs: ::core::vec::Vec<super::super::super::super::ics23::ProofSpec>,
+    pub proof_specs: Vec<ibc_proto::ics23::ProofSpec>,
     pub upgrade_path: Vec<String>,
     pub allow_update: AllowUpdate,
 }
@@ -99,6 +99,7 @@ impl ClientState {
             max_clock_drift,
             frozen_height,
             latest_height,
+            proof_specs: vec![],
             upgrade_path,
             allow_update,
         })
@@ -229,6 +230,7 @@ impl TryFrom<RawClientState> for ClientState {
                 after_expiry: raw.allow_update_after_expiry,
                 after_misbehaviour: raw.allow_update_after_misbehaviour,
             },
+            proof_specs: raw.proof_specs,
         })
     }
 }
