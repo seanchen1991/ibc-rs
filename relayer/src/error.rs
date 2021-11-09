@@ -87,15 +87,15 @@ define_error! {
             |_| { "event monitor error" },
 
         Grpc
-            |_| { "GRPC error" },
+            |_| { "gRPC error" },
 
         GrpcStatus
             { status: GrpcStatus }
-            |e| { format!("GRPC call return error status {0}", e.status) },
+            |e| { format!("gRPC call failed with status: {0}", e.status) },
 
         GrpcTransport
             [ TraceError<TransportError> ]
-            |_| { "error in underlying transport when making GRPC call" },
+            |_| { "error in underlying transport when making gRPC call" },
 
         GrpcResponseParam
             { param: String }
@@ -492,5 +492,33 @@ define_error! {
 impl Error {
     pub fn send<T>(_: crossbeam_channel::SendError<T>) -> Error {
         Error::channel_send()
+    }
+}
+
+impl GrpcStatusSubdetail {
+    /// Check whether this gRPC error matches
+    /// - status: InvalidArgument
+    /// - message: verification failed: ... failed packet acknowledgement verification for client: client state height < proof height ...
+    pub fn is_client_state_height_too_low(&self) -> bool {
+        if self.status.code() != tonic::Code::InvalidArgument {
+            return false;
+        }
+
+        let msg = self.status.message();
+        msg.contains("verification failed") && msg.contains("client state height < proof height")
+    }
+
+    /// Check whether this gRPC error matches
+    /// - status: InvalidArgument
+    /// - message: account sequence mismatch ...
+    pub fn is_account_sequence_mismatch(&self) -> bool {
+        if self.status.code() != tonic::Code::InvalidArgument {
+            return false;
+        }
+
+        self.status
+            .message()
+            .trim_start()
+            .starts_with("account sequence mismatch")
     }
 }
