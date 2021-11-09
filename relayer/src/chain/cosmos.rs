@@ -79,7 +79,7 @@ use ibc_proto::ibc::core::connection::v1::{
 };
 
 use crate::event::monitor::{EventMonitor, EventReceiver};
-use crate::keyring::{KeyEntry, KeyRing};
+use crate::keyring::{sign_message, KeyEntry, KeyRing};
 use crate::light_client::tendermint::LightClient as TmLightClient;
 use crate::light_client::LightClient;
 use crate::light_client::Verified;
@@ -516,15 +516,9 @@ impl CosmosSdkChain {
             .map_err(Error::key_base)
     }
 
-    fn key_bytes(&self, key: &KeyEntry) -> Result<Vec<u8>, Error> {
-        let mut pk_buf = Vec::new();
-        prost::Message::encode(&key.public_key.public_key.to_bytes(), &mut pk_buf).unwrap();
-        Ok(pk_buf)
-    }
-
     fn key_and_bytes(&self) -> Result<(KeyEntry, Vec<u8>), Error> {
         let key = self.key()?;
-        let key_bytes = self.key_bytes(&key)?;
+        let key_bytes = encode_key_bytes(&key)?;
         Ok((key, key_bytes))
     }
 
@@ -561,25 +555,7 @@ impl CosmosSdkChain {
 
     fn signer(&self, sequence: u64) -> Result<SignerInfo, Error> {
         let (_key, pk_buf) = self.key_and_bytes()?;
-        let pk_type = match &self.config.address_type {
-            AddressType::Cosmos => "/cosmos.crypto.secp256k1.PubKey".to_string(),
-            AddressType::Ethermint { pk_type } => pk_type.clone(),
-        };
-        // Create a MsgSend proto Any message
-        let pk_any = Any {
-            type_url: pk_type,
-            value: pk_buf,
-        };
-
-        let single = Single { mode: 1 };
-        let sum_single = Some(Sum::Single(single));
-        let mode = Some(ModeInfo { sum: sum_single });
-        let signer_info = SignerInfo {
-            public_key: Some(pk_any),
-            mode_info: mode,
-            sequence,
-        };
-        Ok(signer_info)
+        encode_signer_info(pk_buf, &self.config.address_type, sequence)
     }
 
     fn max_fee(&self) -> Fee {
@@ -744,6 +720,63 @@ impl CosmosSdkChain {
             revision_height: u64::from(status.sync_info.latest_block_height),
         })
     }
+}
+
+pub fn encode_signer_info(
+    key_bytes: Vec<u8>,
+    address_type: &AddressType,
+    sequence: u64,
+) -> Result<SignerInfo, Error> {
+    let pk_type = match address_type {
+        AddressType::Cosmos => "/cosmos.crypto.secp256k1.PubKey".to_string(),
+        AddressType::Ethermint { pk_type } => pk_type.clone(),
+    };
+    // Create a MsgSend proto Any message
+    let pk_any = Any {
+        type_url: pk_type,
+        value: key_bytes,
+    };
+
+    let single = Single { mode: 1 };
+    let sum_single = Some(Sum::Single(single));
+    let mode = Some(ModeInfo { sum: sum_single });
+    let signer_info = SignerInfo {
+        public_key: Some(pk_any),
+        mode_info: mode,
+        sequence,
+    };
+    Ok(signer_info)
+}
+
+pub fn encode_key_bytes(key: &KeyEntry) -> Result<Vec<u8>, Error> {
+    let mut pk_buf = Vec::new();
+    prost::Message::encode(&key.public_key.public_key.to_bytes(), &mut pk_buf)
+        .map_err(Error::protobuf_encode)?;
+    Ok(pk_buf)
+}
+
+pub fn encode_sign_doc(
+    chain_id: &ChainId,
+    key: &KeyEntry,
+    address_type: &AddressType,
+    body_bytes: Vec<u8>,
+    auth_info_bytes: Vec<u8>,
+    account_number: u64,
+) -> Result<Vec<u8>, Error> {
+    let sign_doc = SignDoc {
+        body_bytes,
+        auth_info_bytes,
+        chain_id: chain_id.to_string(),
+        account_number,
+    };
+
+    // A protobuf serialization of a SignDoc
+    let mut signdoc_buf = Vec::new();
+    prost::Message::encode(&sign_doc, &mut signdoc_buf).unwrap();
+
+    let signed = sign_message(key, signdoc_buf, address_type).map_err(Error::key_base)?;
+
+    Ok(signed)
 }
 
 fn empty_event_present(events: &[IbcEvent]) -> bool {
