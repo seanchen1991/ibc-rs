@@ -96,10 +96,10 @@ mod compatibility;
 pub mod version;
 
 /// Default gas limit when submitting a transaction.
-const DEFAULT_MAX_GAS: u64 = 300_000;
+pub const DEFAULT_MAX_GAS: u64 = 300_000;
 
 /// Fraction of the estimated gas to add to the estimated gas amount when submitting a transaction.
-const DEFAULT_GAS_PRICE_ADJUSTMENT: f64 = 0.1;
+pub const DEFAULT_GAS_PRICE_ADJUSTMENT: f64 = 0.1;
 
 /// Upper limit on the size of transactions submitted by Hermes, expressed as a
 /// fraction of the maximum block size defined in the Tendermint core consensus parameters.
@@ -485,29 +485,7 @@ impl CosmosSdkChain {
     fn send_tx_simulate(&self, tx: Tx) -> Result<SimulateResponse, Error> {
         crate::time!("send_tx_simulate");
 
-        use ibc_proto::cosmos::tx::v1beta1::service_client::ServiceClient;
-
-        // The `tx` field of `SimulateRequest` was deprecated in Cosmos SDK 0.43 in favor of `tx_bytes`.
-        let mut tx_bytes = vec![];
-        prost::Message::encode(&tx, &mut tx_bytes).unwrap(); // FIXME: Handle error here
-
-        #[allow(deprecated)]
-        let req = SimulateRequest {
-            tx: Some(tx), // needed for simulation to go through with Cosmos SDK <  0.43
-            tx_bytes,     // needed for simulation to go through with Cosmos SDk >= 0.43
-        };
-
-        let mut client = self
-            .block_on(ServiceClient::connect(self.grpc_addr.clone()))
-            .map_err(Error::grpc_transport)?;
-
-        let request = tonic::Request::new(req);
-        let response = self
-            .block_on(client.simulate(request))
-            .map_err(Error::grpc_status)?
-            .into_inner();
-
-        Ok(response)
+        self.block_on(send_tx_simulate(tx, &self.grpc_addr))
     }
 
     fn key(&self) -> Result<KeyEntry, Error> {
@@ -584,28 +562,16 @@ impl CosmosSdkChain {
         auth_info_bytes: Vec<u8>,
         account_number: u64,
     ) -> Result<Vec<u8>, Error> {
-        let sign_doc = SignDoc {
+        let key = self.key()?;
+
+        encode_sign_doc(
+            self.id(),
+            &key,
+            &self.config.address_type,
             body_bytes,
             auth_info_bytes,
-            chain_id: self.config.clone().id.to_string(),
             account_number,
-        };
-
-        // A protobuf serialization of a SignDoc
-        let mut signdoc_buf = Vec::new();
-        prost::Message::encode(&sign_doc, &mut signdoc_buf).unwrap();
-
-        // Sign doc
-        let signed = self
-            .keybase
-            .sign_msg(
-                &self.config.key_name,
-                signdoc_buf,
-                &self.config.address_type,
-            )
-            .map_err(Error::key_base)?;
-
-        Ok(signed)
+        )
     }
 
     /// Given a vector of `TxSyncResult` elements,
@@ -777,6 +743,85 @@ pub fn encode_sign_doc(
     let signed = sign_message(key, signdoc_buf, address_type).map_err(Error::key_base)?;
 
     Ok(signed)
+}
+
+pub async fn send_tx_simulate(tx: Tx, grpc_address: &Uri) -> Result<SimulateResponse, Error> {
+    use ibc_proto::cosmos::tx::v1beta1::service_client::ServiceClient;
+
+    // The `tx` field of `SimulateRequest` was deprecated in Cosmos SDK 0.43 in favor of `tx_bytes`.
+    let mut tx_bytes = vec![];
+    prost::Message::encode(&tx, &mut tx_bytes).unwrap(); // FIXME: Handle error here
+
+    #[allow(deprecated)]
+    let req = SimulateRequest {
+        tx: Some(tx), // needed for simulation to go through with Cosmos SDK <  0.43
+        tx_bytes,     // needed for simulation to go through with Cosmos SDk >= 0.43
+    };
+
+    let mut client = ServiceClient::connect(grpc_address.clone())
+        .await
+        .map_err(Error::grpc_transport)?;
+
+    let request = tonic::Request::new(req);
+    let response = client
+        .simulate(request)
+        .await
+        .map_err(Error::grpc_status)?
+        .into_inner();
+
+    Ok(response)
+}
+
+pub async fn estimate_gas(
+    chain_id: &ChainId,
+    tx: Tx,
+    grpc_address: &Uri,
+    default_gas: u64,
+    max_gas: u64,
+) -> Result<u64, Error> {
+    let response = send_tx_simulate(tx, grpc_address).await;
+
+    let estimated_gas = match response {
+        Ok(response) => {
+            let m_gas_info = response.gas_info;
+
+            debug!(
+                "[{}] send_tx: tx simulation successful, simulated gas: {:?}",
+                chain_id, m_gas_info,
+            );
+
+            match m_gas_info {
+                Some(gas) => gas.gas_used,
+                None => default_gas,
+            }
+        }
+        Err(e) => {
+            error!(
+                "[{}] send_tx: failed to estimate gas, falling back on default gas, error: {}",
+                chain_id,
+                e.detail()
+            );
+
+            default_gas
+        }
+    };
+
+    if estimated_gas > max_gas {
+        debug!(
+            estimated = ?estimated_gas,
+            max = ?max_gas,
+            "[{}] send_tx: estimated gas is higher than max gas",
+            chain_id,
+        );
+
+        return Err(Error::tx_simulate_gas_estimate_exceeded(
+            chain_id.clone(),
+            estimated_gas,
+            max_gas,
+        ));
+    } else {
+        Ok(estimated_gas)
+    }
 }
 
 fn empty_event_present(events: &[IbcEvent]) -> bool {
@@ -2352,7 +2397,7 @@ impl fmt::Display for PrettyFee<'_> {
     }
 }
 
-fn calculate_fee(adjusted_gas_amount: u64, gas_price: &GasPrice) -> Coin {
+pub fn calculate_fee(adjusted_gas_amount: u64, gas_price: &GasPrice) -> Coin {
     let fee_amount = mul_ceil(adjusted_gas_amount, gas_price.price);
 
     Coin {
@@ -2362,7 +2407,7 @@ fn calculate_fee(adjusted_gas_amount: u64, gas_price: &GasPrice) -> Coin {
 }
 
 /// Multiply `a` with `f` and round to result up to the nearest integer.
-fn mul_ceil(a: u64, f: f64) -> u64 {
+pub fn mul_ceil(a: u64, f: f64) -> u64 {
     use fraction::Fraction as F;
 
     // Safe to unwrap below as are multiplying two finite fractions
