@@ -1444,6 +1444,7 @@ dependencies = [
  "crossbeam-channel 0.5.1",
  "env_logger",
  "eyre",
+ "futures",
  "hex",
  "ibc",
  "ibc-proto",

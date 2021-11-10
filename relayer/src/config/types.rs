@@ -56,7 +56,7 @@ impl From<MaxMsgNum> for usize {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct MaxTxSize(usize);
+pub struct MaxTxSize(pub usize);
 
 impl MaxTxSize {
     const DEFAULT: usize = 2 * 1048576; // 2 MBytes
