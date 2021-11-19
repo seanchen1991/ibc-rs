@@ -201,7 +201,7 @@ impl ClientDef for TendermintClient {
         _consensus_height: Height,
         _expected_consensus_state: &AnyConsensusState,
     ) -> Result<(), Ics02Error> {
-        todo!()
+        Ok(())
     }
 
     fn verify_connection_state(
@@ -213,7 +213,7 @@ impl ClientDef for TendermintClient {
         _connection_id: Option<&ConnectionId>,
         _expected_connection_end: &ConnectionEnd,
     ) -> Result<(), Ics02Error> {
-        todo!()
+        Ok(())
     }
 
     fn verify_channel_state(
@@ -226,7 +226,7 @@ impl ClientDef for TendermintClient {
         _channel_id: &ChannelId,
         _expected_channel_end: &ChannelEnd,
     ) -> Result<(), Ics02Error> {
-        todo!()
+        Ok(())
     }
 
     fn verify_client_full_state(
@@ -239,7 +239,7 @@ impl ClientDef for TendermintClient {
         _proof: &CommitmentProofBytes,
         _expected_client_state: &AnyClientState,
     ) -> Result<(), Ics02Error> {
-        unimplemented!()
+        Ok(())
     }
 
     fn verify_packet_data(
@@ -252,7 +252,7 @@ impl ClientDef for TendermintClient {
         _seq: &Sequence,
         _data: String,
     ) -> Result<(), Ics02Error> {
-        todo!()
+        Ok(())
     }
 
     fn verify_packet_acknowledgement(
@@ -265,7 +265,7 @@ impl ClientDef for TendermintClient {
         _seq: &Sequence,
         _data: Vec<u8>,
     ) -> Result<(), Ics02Error> {
-        todo!()
+        Ok(())
     }
 
     fn verify_next_sequence_recv(
@@ -277,7 +277,7 @@ impl ClientDef for TendermintClient {
         _channel_id: &ChannelId,
         _seq: &Sequence,
     ) -> Result<(), Ics02Error> {
-        todo!()
+        Ok(())
     }
 
     fn verify_packet_receipt_absence(
@@ -289,7 +289,7 @@ impl ClientDef for TendermintClient {
         _channel_id: &ChannelId,
         _seq: &Sequence,
     ) -> Result<(), Ics02Error> {
-        todo!()
+        Ok(())
     }
 
     fn verify_upgrade_and_update_state(
