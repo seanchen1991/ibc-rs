@@ -524,7 +524,7 @@ impl GrpcStatusSubdetail {
         }
 
         let msg = self.status.message();
-        msg.contains("verification failed") && msg.contains("client state height < proof height")
+        msg.contains("client state height < proof height")
     }
 
     /// Check whether this gRPC error matches
