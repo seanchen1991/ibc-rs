@@ -833,8 +833,11 @@ impl<ChainA: ChainHandle, ChainB: ChainHandle> Channel<ChainA, ChainB> {
             .build_channel_proofs(self.src_port_id(), src_channel_id, query_height)
             .map_err(ChannelError::channel_proof)?;
 
+        trace!("proofs are in the house: {:?}", proofs);
+
         // Build message(s) to update client on destination
         let mut msgs = self.build_update_client_on_dst(proofs.height())?;
+        trace!("built update cl on dst: {:?}", msgs);
 
         let counterparty =
             Counterparty::new(self.src_port_id().clone(), self.src_channel_id().cloned());
@@ -846,6 +849,7 @@ impl<ChainA: ChainHandle, ChainB: ChainHandle> Channel<ChainA, ChainB> {
             vec![self.dst_connection_id().clone()],
             src_channel.version(),
         );
+        trace!("built channel end: {:?}", channel);
 
         // Get signer
         let signer = self
@@ -859,6 +863,8 @@ impl<ChainA: ChainHandle, ChainB: ChainHandle> Channel<ChainA, ChainB> {
             src_channel.counterparty().channel_id.clone()
         };
 
+        trace!("prev channel id: {:?}", previous_channel_id);
+
         // Build the domain type message
         let new_msg = MsgChannelOpenTry {
             port_id: self.dst_port_id().clone(),
@@ -868,6 +874,8 @@ impl<ChainA: ChainHandle, ChainB: ChainHandle> Channel<ChainA, ChainB> {
             proofs,
             signer,
         };
+
+        trace!("assembled chan open try msg: {:?}", new_msg);
 
         msgs.push(new_msg.to_any());
         Ok(msgs)
