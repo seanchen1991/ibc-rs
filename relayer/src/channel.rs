@@ -3,7 +3,7 @@
 use core::time::Duration;
 use prost_types::Any;
 use serde::Serialize;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info, trace, warn};
 
 use ibc::core::ics04_channel::channel::{
     ChannelEnd, Counterparty, IdentifiedChannelEnd, Order, State,
@@ -794,11 +794,14 @@ impl<ChainA: ChainHandle, ChainB: ChainHandle> Channel<ChainA, ChainB> {
     }
 
     pub fn build_chan_open_try(&self) -> Result<Vec<Any>, ChannelError> {
+        trace!("building the chan open try message: get src chan id");
         // Source channel ID must be specified
         let src_channel_id = self
             .src_channel_id()
             .ok_or_else(ChannelError::missing_local_channel_id)?;
+        trace!("building the chan open try message: src chan id={}", src_channel_id);
 
+        trace!("building the chan open try message: check chan existence of src channel with port id {}", self.src_port_id());
         // Channel must exist on source
         let src_channel = self
             .src_chain()

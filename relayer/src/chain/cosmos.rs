@@ -1433,6 +1433,7 @@ impl ChainEndpoint for CosmosSdkChain {
         channel_id: &ChannelId,
         height: ICSHeight,
     ) -> Result<ChannelEnd, Error> {
+        trace!("Querying for a channel {}/{}", port_id, channel_id);
         let res = self.query(
             Path::ChannelEnds(port_id.clone(), channel_id.clone()),
             height,
