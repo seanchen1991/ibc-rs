@@ -209,6 +209,36 @@ impl<'a, Chain: ChainHandle + 'static> SpawnContext<'a, Chain> {
         }
 
         let counterparty_chain_id = client.client_state.chain_id();
+
+        {
+            let config = &self.config.read().expect("poisoned lock");
+
+            let mode = &config.mode;
+
+            if mode.clients.enabled {
+                let counterparty_chain = self.registry.get_or_spawn(&counterparty_chain_id);
+
+                match counterparty_chain {
+                    Ok(counterparty_chain) => {
+                        // Spawn the client worker
+                        let client_object = Object::Client(Client {
+                            dst_client_id: client.client_id.clone(),
+                            dst_chain_id: chain.id(),
+                            src_chain_id: client.client_state.chain_id(),
+                        });
+                        self.workers
+                            .spawn(counterparty_chain, chain.clone(), &client_object, config)
+                            .then(|| {
+                                debug!("spawned Client worker: {}", client_object.short_name())
+                            });
+                    }
+                    Err(e) => {
+                        error!("error spawning counterparty chain: {}", e);
+                    }
+                }
+            }
+        }
+
         let has_counterparty = self
             .config
             .read()
@@ -497,24 +527,6 @@ impl<'a, Chain: ChainHandle + 'static> SpawnContext<'a, Chain> {
             && chan_state_dst.is_open()
             && self.relay_packets_on_channel(&chain, &channel)
         {
-            if mode.clients.enabled {
-                // Spawn the client worker
-                let client_object = Object::Client(Client {
-                    dst_client_id: client.client_id.clone(),
-                    dst_chain_id: chain.id(),
-                    src_chain_id: client.client_state.chain_id(),
-                });
-
-                self.workers
-                    .spawn(
-                        counterparty_chain.clone(),
-                        chain.clone(),
-                        &client_object,
-                        &self.config.read().expect("poisoned lock"),
-                    )
-                    .then(|| debug!("spawned Client worker: {}", client_object.short_name()));
-            }
-
             if mode.packets.enabled {
                 // SAFETY: Safe to unwrap because the inner channel end has state open
                 let counterparty_channel =
