@@ -2,8 +2,10 @@ use core::time::Duration;
 
 use crossbeam_channel::Receiver;
 use ibc::Height;
+use std::sync::Arc;
 use tracing::{error, info, trace, warn};
 
+use crate::util::task::{spawn_background_task, TaskError, TaskHandle};
 use crate::{
     chain::handle::{ChainHandle, ChainHandlePair},
     config::Packets as PacketsConfig,
@@ -29,6 +31,88 @@ pub struct PacketWorker<ChainA: ChainHandle, ChainB: ChainHandle> {
     cmd_rx: Receiver<WorkerCmd>,
     packets_cfg: PacketsConfig,
     first_run: bool,
+}
+
+pub fn spawn_packet_cmd_worker<ChainA: ChainHandle + 'static, ChainB: ChainHandle + 'static>(
+    cmd_rx: Receiver<WorkerCmd>,
+    link: Arc<Link<ChainA, ChainB>>,
+    clear_on_start: bool,
+    clear_interval: Option<u64>,
+) -> TaskHandle {
+    let mut is_first_run: bool = true;
+    spawn_background_task("packet_worker".to_string(), move || {
+        let cmd = cmd_rx
+            .recv()
+            .map_err(|e| TaskError::Fatal(RunError::recv(e)))?;
+
+        match cmd {
+            WorkerCmd::IbcEvents { batch } => {
+                link.a_to_b
+                    .update_schedule(batch)
+                    .map_err(|e| TaskError::Fatal(RunError::link(e)))?;
+            }
+
+            // Handle the arrival of an event signaling that the
+            // source chain has advanced to a new block.
+            WorkerCmd::NewBlock {
+                height,
+                new_block: _,
+            } => {
+                let should_first_clear = is_first_run && clear_on_start;
+                is_first_run = false;
+
+                let is_at_clear_interval = clear_interval
+                    .map(|i| height.revision_height % i == 0)
+                    .unwrap_or(false);
+
+                let should_clear_packet = should_first_clear || is_at_clear_interval;
+
+                // Schedule the clearing of pending packets. This may happen once at start,
+                // and may be _forced_ at predefined block intervals.
+                link.a_to_b
+                    .schedule_packet_clearing(Some(height), should_clear_packet)
+                    .map_err(|e| TaskError::Ignore(RunError::link(e)))?;
+            }
+
+            WorkerCmd::ClearPendingPackets => {
+                link.a_to_b
+                    .schedule_packet_clearing(None, true)
+                    .map_err(|e| TaskError::Ignore(RunError::link(e)))?;
+            }
+
+            WorkerCmd::Shutdown => {
+                return Err(TaskError::Abort);
+            }
+        };
+
+        Ok(())
+    })
+}
+
+pub fn spawn_link_worker<ChainA: ChainHandle + 'static, ChainB: ChainHandle + 'static>(
+    cmd_rx: Receiver<WorkerCmd>,
+    link: Arc<Link<ChainA, ChainB>>,
+) -> TaskHandle {
+    let mut is_first_run: bool = true;
+    spawn_background_task("link_worker".to_string(), move || {
+        link.a_to_b
+            .refresh_schedule()
+            .map_err(|e| TaskError::Ignore(RunError::link(e)))?;
+
+        link.a_to_b
+            .execute_schedule()
+            .map_err(|e| TaskError::Ignore(RunError::link(e)))?;
+
+        let summary = link.a_to_b.process_pending_txs();
+
+        if !summary.is_empty() {
+            trace!("Packet worker produced relay summary: {:?}", summary);
+        }
+
+        // telemetry!(self.packet_metrics(&summary));
+
+        Ok(())
+    })
 }
 
 impl<ChainA: ChainHandle, ChainB: ChainHandle> PacketWorker<ChainA, ChainB> {
