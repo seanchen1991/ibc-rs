@@ -18,6 +18,7 @@ use tracing::info;
     chain drivers to prevent the supervisor from raising
     errors caused by closed connections.
 */
+#[derive(Clone)]
 pub struct SupervisorHandle {
     sender: Sender<SupervisorCmd>,
     stopped: Cell<bool>,

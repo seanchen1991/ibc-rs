@@ -204,6 +204,12 @@ impl WorkerMap {
             .iter()
             .map(|(object, handle)| (handle.id(), object))
     }
+
+    pub fn shutdown(&mut self) {
+        for worker in self.workers.values() {
+            let _ = worker.shutdown();
+        }
+    }
 }
 
 #[cfg(feature = "telemetry")]

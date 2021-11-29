@@ -422,6 +422,7 @@ impl<Chain: ChainHandle + 'static> Supervisor<Chain> {
 
             if step_res == StepResult::Break {
                 info!("stopping supervisor");
+                self.workers.shutdown();
                 return Ok(());
             }
 

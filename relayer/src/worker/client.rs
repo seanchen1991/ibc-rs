@@ -64,8 +64,8 @@ impl<ChainA: ChainHandle, ChainB: ChainHandle> ClientWorker<ChainA, ChainB> {
 
             // Clients typically need refresh every 2/3 of their
             // trusting period (which can e.g., two weeks).
-            // Backoff refresh checking to attempt it every minute.
-            if self.clients_cfg.refresh && last_refresh.elapsed() > Duration::from_secs(60) {
+            // Backoff refresh checking to attempt it every 1 second.
+            if self.clients_cfg.refresh && last_refresh.elapsed() > Duration::from_secs(1) {
                 // Run client refresh, exit only if expired or frozen
                 match client.refresh() {
                     Ok(Some(_)) => {
