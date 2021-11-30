@@ -52,11 +52,6 @@ impl fmt::Display for WorkerId {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum WorkerMsg {
-    Stopped(WorkerId, Object),
-}
-
 pub fn spawn_worker_tasks<ChainA: ChainHandle + 'static, ChainB: ChainHandle + 'static>(
     chains: ChainHandlePair<ChainA, ChainB>,
     id: WorkerId,

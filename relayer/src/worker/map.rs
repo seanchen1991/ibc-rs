@@ -1,8 +1,6 @@
 use alloc::collections::btree_map::BTreeMap as HashMap;
 use core::mem;
 
-use crossbeam_channel::Sender;
-
 use ibc::core::ics24_host::identifier::ChainId;
 use tracing::{debug, trace};
 
@@ -13,25 +11,23 @@ use crate::{
     telemetry,
 };
 
-use super::{spawn_worker_tasks, WorkerId, WorkerMsg, WorkerTaskHandles};
+use super::{spawn_worker_tasks, WorkerId, WorkerTaskHandles};
 
 /// Manage the lifecycle of [`Worker`]s associated with [`Object`]s.
 #[derive(Debug)]
 pub struct WorkerMap {
     workers: HashMap<Object, WorkerTaskHandles>,
     latest_worker_id: WorkerId,
-    msg_tx: Sender<WorkerMsg>,
 }
 
 impl WorkerMap {
     /// Create a new worker map, which will spawn workers with
     /// the given channel for sending messages back to the
     /// [`Supervisor`](crate::supervisor::Supervisor).
-    pub fn new(msg_tx: Sender<WorkerMsg>) -> Self {
+    pub fn new() -> Self {
         Self {
             workers: HashMap::new(),
             latest_worker_id: WorkerId::new(0),
-            msg_tx,
         }
     }
 
