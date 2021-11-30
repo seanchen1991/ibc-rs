@@ -1,9 +1,11 @@
+use alloc::sync::Arc;
 use core::fmt;
-
 use crossbeam_channel::Sender;
 use serde::{Deserialize, Serialize};
 use tracing::{debug, error, info};
 
+use crate::foreign_client::ForeignClient;
+use crate::link::{Link, LinkParameters};
 use crate::{
     chain::handle::{ChainHandle, ChainHandlePair},
     config::Config,
@@ -13,10 +15,10 @@ use crate::{
 pub mod retry_strategy;
 
 mod error;
-pub use error::WorkerError;
+pub use error::{RunError, WorkerError};
 
 mod handle;
-pub use handle::WorkerHandle;
+pub use handle::{WorkerHandle, WorkerTaskHandles};
 
 mod cmd;
 pub use cmd::WorkerCmd;
@@ -75,6 +77,71 @@ impl<ChainA: ChainHandle + 'static, ChainB: ChainHandle + 'static> fmt::Display
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "[{} <-> {}]", self.chains().a.id(), self.chains().b.id(),)
     }
+}
+
+pub fn spawn_worker_tasks<ChainA: ChainHandle + 'static, ChainB: ChainHandle + 'static>(
+    chains: ChainHandlePair<ChainA, ChainB>,
+    id: WorkerId,
+    object: Object,
+    config: &Config,
+) -> Result<WorkerTaskHandles, RunError> {
+    let mut task_handles = Vec::new();
+    let (cmd_tx, cmd_rx) = crossbeam_channel::unbounded();
+
+    match &object {
+        Object::Client(client) => {
+            let client = ForeignClient::restore(
+                client.dst_client_id.clone(),
+                chains.b.clone(),
+                chains.a.clone(),
+            );
+
+            let refresh_task = client::spawn_refresh_client(client.clone());
+            task_handles.push(refresh_task);
+
+            let misbehavior_task = client::detect_misbehavior_task(cmd_rx, client);
+            if let Some(task) = misbehavior_task {
+                task_handles.push(task);
+            }
+        }
+        Object::Connection(connection) => {
+            let connection_task =
+                connection::spawn_connection_worker(connection.clone(), chains, cmd_rx);
+            task_handles.push(connection_task);
+        }
+        Object::Channel(channel) => {
+            let channel_task = channel::spawn_channel_worker(channel.clone(), chains, cmd_rx);
+            task_handles.push(channel_task);
+        }
+        Object::Packet(path) => {
+            let packets_config = config.mode.packets;
+            let link = Arc::new(
+                Link::new_from_opts(
+                    chains.a.clone(),
+                    chains.b.clone(),
+                    LinkParameters {
+                        src_port_id: path.src_port_id.clone(),
+                        src_channel_id: path.src_channel_id.clone(),
+                    },
+                    packets_config.tx_confirmation,
+                )
+                .map_err(RunError::link)?,
+            );
+
+            let packet_task = packet::spawn_packet_cmd_worker(
+                cmd_rx,
+                link.clone(),
+                packets_config.clear_on_start,
+                packets_config.clear_interval,
+            );
+            task_handles.push(packet_task);
+
+            let link_task = packet::spawn_link_worker(link);
+            task_handles.push(link_task);
+        }
+    }
+
+    Ok(WorkerTaskHandles::new(id, object, cmd_tx, task_handles))
 }
 
 impl<ChainA: ChainHandle + 'static, ChainB: ChainHandle + 'static> Worker<ChainA, ChainB> {

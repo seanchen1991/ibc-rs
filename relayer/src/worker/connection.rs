@@ -29,7 +29,7 @@ pub fn spawn_connection_worker<ChainA: ChainHandle + 'static, ChainB: ChainHandl
 ) -> TaskHandle {
     let mut resume_handshake = true;
 
-    spawn_background_task("connection_worker".to_string(), move || {
+    spawn_background_task("connection_worker".to_string(), None, move || {
         let cmd = cmd_rx
             .recv()
             .map_err(|e| TaskError::Fatal(RunError::recv(e)))?;

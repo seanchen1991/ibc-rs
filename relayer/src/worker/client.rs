@@ -32,6 +32,7 @@ pub fn spawn_refresh_client<ChainA: ChainHandle + 'static, ChainB: ChainHandle +
 ) -> TaskHandle {
     spawn_background_task(
         "refresh_client".to_string(),
+        Some(Duration::from_secs(1)),
         move || -> Result<(), TaskError<ForeignClientError>> {
             let res = client.refresh().map_err(|e| {
                 if let ForeignClientErrorDetail::ExpiredOrFrozen(_) = e.detail() {
@@ -43,8 +44,6 @@ pub fn spawn_refresh_client<ChainA: ChainHandle + 'static, ChainB: ChainHandle +
             if res.is_some() {
                 telemetry!(ibc_client_updates, &client.dst_chain.id(), &client.id, 1);
             }
-
-            thread::sleep(Duration::from_secs(1));
 
             Ok(())
         },
@@ -68,11 +67,9 @@ pub fn detect_misbehavior_task<ChainA: ChainHandle + 'static, ChainB: ChainHandl
 
     let handle = spawn_background_task(
         "detect_misbehavior".to_string(),
+        Some(Duration::from_millis(600)),
         move || -> Result<(), TaskError<TryRecvError>> {
-            let cmd = receiver.try_recv().map_err(|e| {
-                thread::sleep(Duration::from_millis(100));
-                TaskError::Ignore(e)
-            })?;
+            let cmd = receiver.try_recv().map_err(|e| TaskError::Ignore(e))?;
 
             match cmd {
                 WorkerCmd::IbcEvents { batch } => {

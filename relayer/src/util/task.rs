@@ -1,4 +1,5 @@
 use core::fmt::Display;
+use core::time::Duration;
 use crossbeam_channel::{bounded, Sender};
 use std::thread;
 use tracing::{error, info, warn};
@@ -28,6 +29,7 @@ pub enum TaskError<E> {
 
 pub fn spawn_background_task<E: Display>(
     task_name: String,
+    interval_pause: Option<Duration>,
     mut step_runner: impl FnMut() -> Result<(), TaskError<E>> + Send + Sync + 'static,
 ) -> TaskHandle {
     let (shutdown_sender, receiver) = bounded(1);
@@ -58,6 +60,9 @@ pub fn spawn_background_task<E: Display>(
                     return;
                 }
             },
+        }
+        if let Some(interval) = interval_pause {
+            thread::sleep(interval);
         }
     });
 

@@ -29,7 +29,7 @@ pub fn spawn_channel_worker<ChainA: ChainHandle + 'static, ChainB: ChainHandle +
 ) -> TaskHandle {
     let mut resume_handshake = true;
 
-    spawn_background_task("channel_worker".to_string(), move || {
+    spawn_background_task("channel_worker".to_string(), None, move || {
         let cmd = cmd_rx
             .recv()
             .map_err(|e| TaskError::Fatal(RunError::recv(e)))?;

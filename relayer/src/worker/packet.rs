@@ -37,10 +37,10 @@ pub fn spawn_packet_cmd_worker<ChainA: ChainHandle + 'static, ChainB: ChainHandl
     cmd_rx: Receiver<WorkerCmd>,
     link: Arc<Link<ChainA, ChainB>>,
     clear_on_start: bool,
-    clear_interval: Option<u64>,
+    clear_interval: u64,
 ) -> TaskHandle {
     let mut is_first_run: bool = true;
-    spawn_background_task("packet_worker".to_string(), move || {
+    spawn_background_task("packet_worker".to_string(), None, move || {
         let cmd = cmd_rx
             .recv()
             .map_err(|e| TaskError::Fatal(RunError::recv(e)))?;
@@ -61,11 +61,12 @@ pub fn spawn_packet_cmd_worker<ChainA: ChainHandle + 'static, ChainB: ChainHandl
                 let should_first_clear = is_first_run && clear_on_start;
                 is_first_run = false;
 
-                let is_at_clear_interval = clear_interval
-                    .map(|i| height.revision_height % i == 0)
-                    .unwrap_or(false);
+                let clear_inverval_enabled = clear_interval != 0;
 
-                let should_clear_packet = should_first_clear || is_at_clear_interval;
+                let is_at_clear_interval = height.revision_height % height.revision_height == 0;
+
+                let should_clear_packet =
+                    should_first_clear || (clear_inverval_enabled && is_at_clear_interval);
 
                 // Schedule the clearing of pending packets. This may happen once at start,
                 // and may be _forced_ at predefined block intervals.
@@ -90,11 +91,9 @@ pub fn spawn_packet_cmd_worker<ChainA: ChainHandle + 'static, ChainB: ChainHandl
 }
 
 pub fn spawn_link_worker<ChainA: ChainHandle + 'static, ChainB: ChainHandle + 'static>(
-    cmd_rx: Receiver<WorkerCmd>,
     link: Arc<Link<ChainA, ChainB>>,
 ) -> TaskHandle {
-    let mut is_first_run: bool = true;
-    spawn_background_task("link_worker".to_string(), move || {
+    spawn_background_task("link_worker".to_string(), None, move || {
         link.a_to_b
             .refresh_schedule()
             .map_err(|e| TaskError::Ignore(RunError::link(e)))?;

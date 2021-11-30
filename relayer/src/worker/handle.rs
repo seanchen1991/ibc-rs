@@ -10,6 +10,7 @@ use ibc::{
     Height,
 };
 
+use crate::util::task::TaskHandle;
 use crate::{event::monitor::EventBatch, object::Object};
 
 use super::error::WorkerError;
@@ -22,6 +23,87 @@ pub struct WorkerHandle {
     object: Object,
     tx: Sender<WorkerCmd>,
     thread_handle: JoinHandle<()>,
+}
+
+pub struct WorkerTaskHandles {
+    id: WorkerId,
+    object: Object,
+    tx: Sender<WorkerCmd>,
+    task_handles: Vec<TaskHandle>,
+}
+
+impl WorkerTaskHandles {
+    pub fn new(
+        id: WorkerId,
+        object: Object,
+        tx: Sender<WorkerCmd>,
+        task_handles: Vec<TaskHandle>,
+    ) -> Self {
+        Self {
+            id,
+            object,
+            tx,
+            task_handles,
+        }
+    }
+
+    /// Send a batch of events to the worker.
+    pub fn send_events(
+        &self,
+        height: Height,
+        events: Vec<IbcEvent>,
+        chain_id: ChainId,
+    ) -> Result<(), WorkerError> {
+        let batch = EventBatch {
+            chain_id,
+            height,
+            events,
+        };
+
+        self.tx
+            .send(WorkerCmd::IbcEvents { batch })
+            .map_err(WorkerError::send)
+    }
+
+    /// Send a batch of [`NewBlock`] event to the worker.
+    pub fn send_new_block(&self, height: Height, new_block: NewBlock) -> Result<(), WorkerError> {
+        self.tx
+            .send(WorkerCmd::NewBlock { height, new_block })
+            .map_err(WorkerError::send)
+    }
+
+    /// Instruct the worker to clear pending packets.
+    pub fn clear_pending_packets(&self) -> Result<(), WorkerError> {
+        self.tx
+            .send(WorkerCmd::ClearPendingPackets)
+            .map_err(WorkerError::send)
+    }
+
+    /// Shutdown the worker.
+    pub fn shutdown(self) {
+        for task in self.task_handles.into_iter() {
+            task.shutdown()
+        }
+    }
+
+    /// Wait for the worker thread to finish.
+    pub fn join(self) {
+        trace!(worker = %self.object.short_name(), "worker::handle: waiting for worker loop to end");
+        for task in self.task_handles.into_iter() {
+            task.join()
+        }
+        trace!(worker = %self.object.short_name(), "worker::handle: waiting for worker loop to end: done");
+    }
+
+    /// Get the worker's id.
+    pub fn id(&self) -> WorkerId {
+        self.id
+    }
+
+    /// Get a reference to the worker's object.
+    pub fn object(&self) -> &Object {
+        &self.object
+    }
 }
 
 impl fmt::Debug for WorkerHandle {
