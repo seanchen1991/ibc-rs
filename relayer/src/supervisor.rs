@@ -316,8 +316,8 @@ fn collect_events(
 
 /// Create a new `SpawnContext` for spawning workers.
 fn spawn_context<'a, Chain: ChainHandle + 'static>(
-    config: Arc<RwLock<Config>>,
-    registry: SharedRegistry<Chain>,
+    config: &'a Config,
+    registry: &'a mut Registry<Chain>,
     client_state_filter: &'a mut FilterPolicy,
     workers: &'a mut WorkerMap,
     mode: SpawnMode,
@@ -415,7 +415,7 @@ fn handle_rest_requests<Chain: ChainHandle>(
     workers: &WorkerMap,
     rest_rx: &rest::Receiver,
 ) {
-    if let Some(cmd) = rest::process_incoming_requests(&config, rest_rx) {
+    if let Some(cmd) = rest::process_incoming_requests(config, rest_rx) {
         handle_rest_cmd(registry, workers, cmd);
     }
 }
@@ -547,30 +547,26 @@ fn handle_batch<Chain: ChainHandle + 'static>(
 /// If the removal had any effect, returns [`CmdEffect::ConfigChanged`] as
 /// subscriptions need to be reset to take into account the newly added chain.
 fn remove_chain<Chain: ChainHandle + 'static>(
-    config: Arc<RwLock<Config>>,
-    registry: SharedRegistry<Chain>,
+    config: &mut Config,
+    registry: &mut Registry<Chain>,
     workers: &mut WorkerMap,
     client_state_filter: &mut FilterPolicy,
     id: &ChainId,
 ) -> CmdEffect {
-    if !config.read().expect("poisoned lock").has_chain(id) {
+    if !config.has_chain(id) {
         info!(chain.id=%id, "skipping removal of non-existing chain");
         return CmdEffect::Nothing;
     }
 
     info!(chain.id=%id, "removing existing chain");
 
-    config
-        .write()
-        .expect("poisoned lock")
-        .chains
-        .retain(|c| &c.id != id);
+    config.chains.retain(|c| &c.id != id);
 
     debug!(chain.id=%id, "shutting down workers");
 
     let mut ctx = spawn_context(
-        config.clone(),
-        registry.clone(),
+        config,
+        registry,
         client_state_filter,
         workers,
         SpawnMode::Reload,
@@ -590,26 +586,22 @@ fn remove_chain<Chain: ChainHandle + 'static>(
 /// If the addition had any effect, returns [`CmdEffect::ConfigChanged`] as
 /// subscriptions need to be reset to take into account the newly added chain.
 fn add_chain<Chain: ChainHandle + 'static>(
-    config: Arc<RwLock<Config>>,
-    registry: SharedRegistry<Chain>,
+    config: &mut Config,
+    registry: &mut Registry<Chain>,
     workers: &mut WorkerMap,
     client_state_filter: &mut FilterPolicy,
     chain_config: ChainConfig,
 ) -> CmdEffect {
     let id = chain_config.id.clone();
 
-    if config.read().expect("poisoned lock").has_chain(&id) {
+    if config.has_chain(&id) {
         info!(chain.id=%id, "skipping addition of already existing chain");
         return CmdEffect::Nothing;
     }
 
     info!(chain.id=%id, "adding new chain");
 
-    config
-        .write()
-        .expect("poisoned lock")
-        .chains
-        .push(chain_config);
+    config.chains.push(chain_config);
 
     debug!(chain.id=%id, "spawning chain runtime");
 
@@ -620,11 +612,7 @@ fn add_chain<Chain: ChainHandle + 'static>(
         );
 
         // Remove the newly added config
-        config
-            .write()
-            .expect("poisoned lock")
-            .chains
-            .retain(|c| c.id != id);
+        config.chains.retain(|c| c.id != id);
 
         return CmdEffect::Nothing;
     }
@@ -651,8 +639,8 @@ fn add_chain<Chain: ChainHandle + 'static>(
 /// If the update had any effect, returns [`CmdEffect::ConfigChanged`] as
 /// subscriptions need to be reset to take into account the newly added chain.
 fn update_chain<Chain: ChainHandle + 'static>(
-    config: Arc<RwLock<Config>>,
-    registry: SharedRegistry<Chain>,
+    config: &mut Config,
+    registry: &mut Registry<Chain>,
     workers: &mut WorkerMap,
     client_state_filter: &mut FilterPolicy,
     chain_config: ChainConfig,
@@ -660,8 +648,8 @@ fn update_chain<Chain: ChainHandle + 'static>(
     info!(chain.id=%chain_config.id, "updating existing chain");
 
     let removed = remove_chain(
-        config.clone(),
-        registry.clone(),
+        config,
+        registry,
         workers,
         client_state_filter,
         &chain_config.id,
@@ -677,8 +665,8 @@ fn update_chain<Chain: ChainHandle + 'static>(
 /// Returns an [`CmdEffect`] which instructs the caller as to
 /// whether or not the event subscriptions needs to be reset or not.
 fn update_config<Chain: ChainHandle + 'static>(
-    config: Arc<RwLock<Config>>,
-    registry: SharedRegistry<Chain>,
+    config: &mut Config,
+    registry: &mut Registry<Chain>,
     workers: &mut WorkerMap,
     client_state_filter: &mut FilterPolicy,
     update: ConfigUpdate,
@@ -753,8 +741,8 @@ impl<Chain: ChainHandle + 'static> Supervisor<Chain> {
             match cmd {
                 SupervisorCmd::UpdateConfig(update) => {
                     let effect = update_config(
-                        self.config.clone(),
-                        self.registry.clone(),
+                        &mut self.config.write().unwrap(),
+                        &mut self.registry.write(),
                         &mut self.workers,
                         &mut self.client_state_filter,
                         update,
@@ -791,7 +779,7 @@ impl<Chain: ChainHandle + 'static> Supervisor<Chain> {
                 &self.config.read().unwrap(),
                 &self.registry.read(),
                 &self.workers,
-                &rest_rx,
+                rest_rx,
             );
         }
 
@@ -807,8 +795,8 @@ impl<Chain: ChainHandle + 'static> Supervisor<Chain> {
 
     pub fn run_without_health_check(&mut self) -> Result<(), Error> {
         spawn_context(
-            self.config.clone(),
-            self.registry.clone(),
+            &self.config.read().unwrap(),
+            &mut self.registry.write(),
             &mut self.client_state_filter,
             &mut self.workers,
             SpawnMode::Startup,
