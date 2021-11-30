@@ -84,7 +84,7 @@ pub fn spawn_worker_tasks<ChainA: ChainHandle + 'static, ChainB: ChainHandle + '
     id: WorkerId,
     object: Object,
     config: &Config,
-) -> Result<WorkerTaskHandles, RunError> {
+) -> WorkerTaskHandles {
     let mut task_handles = Vec::new();
     let (cmd_tx, cmd_rx) = crossbeam_channel::unbounded();
 
@@ -115,38 +115,38 @@ pub fn spawn_worker_tasks<ChainA: ChainHandle + 'static, ChainB: ChainHandle + '
         }
         Object::Packet(path) => {
             let packets_config = config.mode.packets;
-            let link = Arc::new(
-                Link::new_from_opts(
-                    chains.a.clone(),
-                    chains.b.clone(),
-                    LinkParameters {
-                        src_port_id: path.src_port_id.clone(),
-                        src_channel_id: path.src_channel_id.clone(),
-                    },
-                    packets_config.tx_confirmation,
-                )
-                .map_err(RunError::link)?,
+            let link = Link::new_from_opts(
+                chains.a.clone(),
+                chains.b.clone(),
+                LinkParameters {
+                    src_port_id: path.src_port_id.clone(),
+                    src_channel_id: path.src_channel_id.clone(),
+                },
+                packets_config.tx_confirmation,
             );
 
-            let packet_task = packet::spawn_packet_cmd_worker(
-                cmd_rx,
-                link.clone(),
-                packets_config.clear_on_start,
-                packets_config.clear_interval,
-            );
-            task_handles.push(packet_task);
+            if let Ok(link) = link {
+                let link = Arc::new(link);
+                let packet_task = packet::spawn_packet_cmd_worker(
+                    cmd_rx,
+                    link.clone(),
+                    packets_config.clear_on_start,
+                    packets_config.clear_interval,
+                );
+                task_handles.push(packet_task);
 
-            let link_task = packet::spawn_link_worker(link);
-            task_handles.push(link_task);
+                let link_task = packet::spawn_link_worker(link);
+                task_handles.push(link_task);
+            }
         }
     }
 
-    Ok(WorkerTaskHandles::new(id, object, cmd_tx, task_handles))
+    WorkerTaskHandles::new(id, object, cmd_tx, task_handles)
 }
 
 impl<ChainA: ChainHandle + 'static, ChainB: ChainHandle + 'static> Worker<ChainA, ChainB> {
     /// Spawn a worker which relays events pertaining to an [`Object`] between two `chains`.
-    pub fn spawn(
+    pub fn spawn2(
         chains: ChainHandlePair<ChainA, ChainB>,
         id: WorkerId,
         object: Object,

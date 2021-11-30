@@ -80,10 +80,6 @@ pub fn spawn_packet_cmd_worker<ChainA: ChainHandle + 'static, ChainB: ChainHandl
                     .schedule_packet_clearing(None, true)
                     .map_err(|e| TaskError::Ignore(RunError::link(e)))?;
             }
-
-            WorkerCmd::Shutdown => {
-                return Err(TaskError::Abort);
-            }
         };
 
         Ok(())
@@ -230,10 +226,6 @@ impl<ChainA: ChainHandle, ChainB: ChainHandle> PacketWorker<ChainA, ChainB> {
                 }
 
                 WorkerCmd::ClearPendingPackets => link.a_to_b.schedule_packet_clearing(None, true),
-
-                WorkerCmd::Shutdown => {
-                    return RetryResult::Ok(Step::Shutdown);
-                }
             };
 
             if let Err(e) = result {

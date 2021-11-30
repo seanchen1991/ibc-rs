@@ -2,7 +2,7 @@ use core::time::Duration;
 use std::thread;
 
 use crossbeam_channel::Receiver;
-use tracing::{debug, info, warn};
+use tracing::{debug, warn};
 
 use crate::channel::Channel as RelayChannel;
 use crate::util::task::{spawn_background_task, TaskError, TaskHandle};
@@ -88,11 +88,6 @@ pub fn spawn_channel_worker<ChainA: ChainHandle + 'static, ChainB: ChainHandle +
                 retry_with_index(retry_strategy::worker_default_strategy(), |index| {
                     handshake_channel.step_state(state, index)
                 })
-            }
-
-            WorkerCmd::Shutdown => {
-                info!(channel = %channel.short_name(), "shutting down Channel worker");
-                return Ok(());
             }
 
             WorkerCmd::ClearPendingPackets => Ok(()), // nothing to do
@@ -190,11 +185,6 @@ impl<ChainA: ChainHandle, ChainB: ChainHandle> ChannelWorker<ChainA, ChainB> {
                         retry_with_index(retry_strategy::worker_default_strategy(), |index| {
                             handshake_channel.step_state(state, index)
                         })
-                    }
-
-                    WorkerCmd::Shutdown => {
-                        info!(channel = %self.channel.short_name(), "shutting down Channel worker");
-                        return Ok(());
                     }
 
                     WorkerCmd::ClearPendingPackets => Ok(()), // nothing to do

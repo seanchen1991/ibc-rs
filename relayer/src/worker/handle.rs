@@ -79,10 +79,9 @@ impl WorkerTaskHandles {
             .map_err(WorkerError::send)
     }
 
-    /// Shutdown the worker.
-    pub fn shutdown(self) {
+    pub fn shutdown_and_wait(self) {
         for task in self.task_handles.into_iter() {
-            task.shutdown()
+            task.shutdown_and_wait()
         }
     }
 
@@ -103,6 +102,15 @@ impl WorkerTaskHandles {
     /// Get a reference to the worker's object.
     pub fn object(&self) -> &Object {
         &self.object
+    }
+}
+
+impl fmt::Debug for WorkerTaskHandles {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("WorkerHandle")
+            .field("id", &self.id)
+            .field("object", &self.object)
+            .finish_non_exhaustive()
     }
 }
 
@@ -160,11 +168,6 @@ impl WorkerHandle {
         self.tx
             .send(WorkerCmd::ClearPendingPackets)
             .map_err(WorkerError::send)
-    }
-
-    /// Shutdown the worker.
-    pub fn shutdown(&self) -> Result<(), WorkerError> {
-        self.tx.send(WorkerCmd::Shutdown).map_err(WorkerError::send)
     }
 
     /// Wait for the worker thread to finish.

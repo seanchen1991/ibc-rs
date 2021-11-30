@@ -1,9 +1,10 @@
 use alloc::collections::btree_map::BTreeMap as HashMap;
+use core::mem;
 
 use crossbeam_channel::Sender;
 
 use ibc::core::ics24_host::identifier::ChainId;
-use tracing::{debug, trace, warn};
+use tracing::{debug, trace};
 
 use crate::{
     chain::handle::{ChainHandle, ChainHandlePair},
@@ -12,12 +13,12 @@ use crate::{
     telemetry,
 };
 
-use super::{Worker, WorkerHandle, WorkerId, WorkerMsg};
+use super::{spawn_worker_tasks, WorkerId, WorkerMsg, WorkerTaskHandles};
 
 /// Manage the lifecycle of [`Worker`]s associated with [`Object`]s.
 #[derive(Debug)]
 pub struct WorkerMap {
-    workers: HashMap<Object, WorkerHandle>,
+    workers: HashMap<Object, WorkerTaskHandles>,
     latest_worker_id: WorkerId,
     msg_tx: Sender<WorkerMsg>,
 }
@@ -90,7 +91,7 @@ impl WorkerMap {
     pub fn to_notify<'a>(
         &'a self,
         src_chain_id: &'a ChainId,
-    ) -> impl Iterator<Item = &'a WorkerHandle> {
+    ) -> impl Iterator<Item = &'a WorkerTaskHandles> {
         self.workers.iter().filter_map(move |(o, w)| {
             if o.notify_new_block(src_chain_id) {
                 Some(w)
@@ -110,7 +111,7 @@ impl WorkerMap {
         src: Chain,
         dst: Chain,
         config: &Config,
-    ) -> &WorkerHandle {
+    ) -> &WorkerTaskHandles {
         if self.workers.contains_key(&object) {
             &self.workers[&object]
         } else {
@@ -145,14 +146,13 @@ impl WorkerMap {
         dst: Chain,
         object: &Object,
         config: &Config,
-    ) -> WorkerHandle {
+    ) -> WorkerTaskHandles {
         telemetry!(worker, metric_type(object), 1);
 
-        Worker::spawn(
+        spawn_worker_tasks(
             ChainHandlePair { a: src, b: dst },
             self.next_worker_id(),
             object.clone(),
-            self.msg_tx.clone(),
             config,
         )
     }
@@ -173,8 +173,8 @@ impl WorkerMap {
             .collect()
     }
 
-    /// List the [`WorkerHandle`]s associated with the given chain.
-    pub fn workers_for_chain(&self, chain_id: &ChainId) -> Vec<&WorkerHandle> {
+    /// List the [`WorkerTaskHandles`]s associated with the given chain.
+    pub fn workers_for_chain(&self, chain_id: &ChainId) -> Vec<&WorkerTaskHandles> {
         self.workers
             .iter()
             .filter_map(|(o, h)| o.for_chain(chain_id).then(|| h))
@@ -186,15 +186,7 @@ impl WorkerMap {
         if let Some(handle) = self.workers.remove(object) {
             telemetry!(worker, metric_type(object), -1);
 
-            match handle.shutdown() {
-                Ok(()) => {
-                    trace!(object = %object.short_name(), "waiting for worker to exit");
-                    let _ = handle.join();
-                }
-                Err(e) => {
-                    warn!(object = %object.short_name(), "a worker may have failed to shutdown properly: {}", e);
-                }
-            }
+            handle.shutdown_and_wait();
         }
     }
 
@@ -206,8 +198,9 @@ impl WorkerMap {
     }
 
     pub fn shutdown(&mut self) {
-        for worker in self.workers.values() {
-            let _ = worker.shutdown();
+        let workers = mem::take(&mut self.workers);
+        for worker in workers.into_values() {
+            worker.shutdown_and_wait();
         }
     }
 }

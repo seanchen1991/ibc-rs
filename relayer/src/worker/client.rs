@@ -69,7 +69,7 @@ pub fn detect_misbehavior_task<ChainA: ChainHandle + 'static, ChainB: ChainHandl
         "detect_misbehavior".to_string(),
         Some(Duration::from_millis(600)),
         move || -> Result<(), TaskError<TryRecvError>> {
-            let cmd = receiver.try_recv().map_err(|e| TaskError::Ignore(e))?;
+            let cmd = receiver.recv().map_err(|_| TaskError::Abort)?;
 
             match cmd {
                 WorkerCmd::IbcEvents { batch } => {
@@ -98,10 +98,6 @@ pub fn detect_misbehavior_task<ChainA: ChainHandle + 'static, ChainB: ChainHandl
 
                 WorkerCmd::NewBlock { .. } => {}
                 WorkerCmd::ClearPendingPackets => {}
-
-                WorkerCmd::Shutdown => {
-                    return Err(TaskError::Abort);
-                }
             }
 
             Ok(())
@@ -141,8 +137,6 @@ fn process_cmd<ChainA: ChainHandle, ChainB: ChainHandle>(
 
         WorkerCmd::NewBlock { .. } => Next::Continue,
         WorkerCmd::ClearPendingPackets => Next::Continue,
-
-        WorkerCmd::Shutdown => Next::Abort,
     }
 }
 

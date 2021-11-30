@@ -19,6 +19,11 @@ impl TaskHandle {
     pub fn shutdown(self) {
         let _ = self.shutdown_sender.send(());
     }
+
+    pub fn shutdown_and_wait(self) {
+        let _ = self.shutdown_sender.send(());
+        let _ = self.join_handle.join();
+    }
 }
 
 pub enum TaskError<E> {
