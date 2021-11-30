@@ -5,7 +5,7 @@ use std::thread;
 use tracing::{error, info, warn};
 
 pub struct TaskHandle {
-    shutdown_sender: Sender<()>,
+    shutdown_sender: ShutdownHandle,
     join_handle: thread::JoinHandle<()>,
 }
 
@@ -17,11 +17,11 @@ impl TaskHandle {
     }
 
     pub fn shutdown(self) {
-        let _ = self.shutdown_sender.send(());
+        let _ = self.shutdown_sender.0.send(());
     }
 
     pub fn shutdown_and_wait(self) {
-        let _ = self.shutdown_sender.send(());
+        let _ = self.shutdown_sender.0.send(());
         let _ = self.join_handle.join();
     }
 }
@@ -72,7 +72,7 @@ pub fn spawn_background_task<E: Display>(
     });
 
     TaskHandle {
-        shutdown_sender,
+        shutdown_sender: ShutdownHandle(shutdown_sender),
         join_handle,
     }
 }

@@ -1,3 +1,4 @@
+use core::time::Duration;
 use crossbeam_channel::Receiver;
 use std::sync::Arc;
 use tracing::trace;
@@ -20,6 +21,7 @@ pub fn spawn_packet_cmd_worker<ChainA: ChainHandle + 'static, ChainB: ChainHandl
             .recv()
             .map_err(|e| TaskError::Fatal(RunError::recv(e)))?;
 
+        // TODO: add retry
         match cmd {
             WorkerCmd::IbcEvents { batch } => {
                 link.a_to_b
@@ -64,25 +66,29 @@ pub fn spawn_packet_cmd_worker<ChainA: ChainHandle + 'static, ChainB: ChainHandl
 pub fn spawn_link_worker<ChainA: ChainHandle + 'static, ChainB: ChainHandle + 'static>(
     link: Arc<Link<ChainA, ChainB>>,
 ) -> TaskHandle {
-    spawn_background_task("link_worker".to_string(), None, move || {
-        link.a_to_b
-            .refresh_schedule()
-            .map_err(|e| TaskError::Ignore(RunError::link(e)))?;
+    spawn_background_task(
+        "link_worker".to_string(),
+        Some(Duration::from_millis(500)),
+        move || {
+            link.a_to_b
+                .refresh_schedule()
+                .map_err(|e| TaskError::Ignore(RunError::link(e)))?;
 
-        link.a_to_b
-            .execute_schedule()
-            .map_err(|e| TaskError::Ignore(RunError::link(e)))?;
+            link.a_to_b
+                .execute_schedule()
+                .map_err(|e| TaskError::Ignore(RunError::link(e)))?;
 
-        let summary = link.a_to_b.process_pending_txs();
+            let summary = link.a_to_b.process_pending_txs();
 
-        if !summary.is_empty() {
-            trace!("Packet worker produced relay summary: {:?}", summary);
-        }
+            if !summary.is_empty() {
+                trace!("Packet worker produced relay summary: {:?}", summary);
+            }
 
-        // telemetry!(self.packet_metrics(&summary));
+            // telemetry!(self.packet_metrics(&summary));
 
-        Ok(())
-    })
+            Ok(())
+        },
+    )
 }
 
 // #[cfg(feature = "telemetry")]

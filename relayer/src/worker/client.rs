@@ -70,7 +70,9 @@ pub fn detect_misbehavior_task<ChainA: ChainHandle + 'static, ChainB: ChainHandl
 
                             match client.detect_misbehaviour_and_submit_evidence(Some(update)) {
                                 MisbehaviourResults::ValidClient => {}
-                                MisbehaviourResults::VerificationError => {}
+                                MisbehaviourResults::VerificationError => {
+                                    // can retry in next call
+                                }
                                 MisbehaviourResults::EvidenceSubmitted(_) => {
                                     // if evidence was submitted successfully then exit
                                     return Err(TaskError::Abort);

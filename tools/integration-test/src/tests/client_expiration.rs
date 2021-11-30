@@ -17,6 +17,10 @@ fn test_client_expiration() -> Result<(), Error> {
 pub struct ClientExpirationTest;
 
 impl TestOverrides for ClientExpirationTest {
+    fn modify_test_config(&self, config: &mut TestConfig) {
+        config.bootstrap_with_random_ids = false;
+    }
+
     fn modify_relayer_config(&self, config: &mut Config) {
         for mut chain_config in config.chains.iter_mut() {
             chain_config.trusting_period = Some(CLIENT_EXPIRY);
@@ -51,9 +55,10 @@ impl BinaryChainTest for ClientExpirationTest {
 
         sleep(sleep_time);
 
-        info!("Trying to bootstrap channel after client is expired");
+        // info!("Trying to bootstrap channel after client is expired");
         bootstrap_channel_with_chains(&chains, &port, &port)?;
 
-        crate::suspend();
+        // crate::suspend();
+        Ok(())
     }
 }

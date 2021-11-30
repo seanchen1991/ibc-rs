@@ -48,6 +48,7 @@ pub fn init_test() -> Result<TestConfig, Error> {
         chain_command_path,
         chain_store_dir,
         hang_on_fail,
+        bootstrap_with_random_ids: true,
     })
 }
 
