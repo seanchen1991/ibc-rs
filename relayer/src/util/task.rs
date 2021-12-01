@@ -1,4 +1,5 @@
 use core::fmt::Display;
+use core::mem;
 use core::time::Duration;
 use crossbeam_channel::{bounded, Sender};
 use std::sync::{Arc, RwLock};
@@ -6,25 +7,23 @@ use std::thread;
 use tracing::{error, info, warn};
 
 pub struct TaskHandle {
-    shutdown_sender: ShutdownHandle,
-    join_handle: thread::JoinHandle<()>,
+    task_name: String,
+    shutdown_sender: Sender<()>,
     stopped: Arc<RwLock<bool>>,
+    _join_handle: JoinHandle,
 }
 
-struct ShutdownHandle(Sender<()>);
+struct JoinHandle(Option<thread::JoinHandle<()>>);
 
 impl TaskHandle {
-    pub fn join(self) {
-        let _ = self.join_handle.join();
-    }
+    pub fn join(self) {}
 
-    pub fn shutdown(self) {
-        let _ = self.shutdown_sender.0.send(());
+    pub fn shutdown(&self) {
+        let _ = self.shutdown_sender.send(());
     }
 
     pub fn shutdown_and_wait(self) {
-        let _ = self.shutdown_sender.0.send(());
-        let _ = self.join_handle.join();
+        let _ = self.shutdown_sender.send(());
     }
 
     pub fn is_stopped(&self) -> bool {
@@ -47,6 +46,8 @@ pub fn spawn_background_task<E: Display>(
     let write_stopped = stopped.clone();
 
     let (shutdown_sender, receiver) = bounded(1);
+
+    let task_name_2 = task_name.clone();
 
     let join_handle = thread::spawn(move || {
         loop {
@@ -85,14 +86,27 @@ pub fn spawn_background_task<E: Display>(
     });
 
     TaskHandle {
-        shutdown_sender: ShutdownHandle(shutdown_sender),
-        join_handle,
+        task_name: task_name_2,
+        shutdown_sender,
         stopped,
+        _join_handle: JoinHandle(Some(join_handle)),
     }
 }
 
-impl Drop for ShutdownHandle {
+impl Drop for JoinHandle {
     fn drop(&mut self) {
-        let _ = self.0.send(());
+        if let Some(handle) = mem::take(&mut self.0) {
+            let _ = handle.join();
+        }
+    }
+}
+
+impl Drop for TaskHandle {
+    fn drop(&mut self) {
+        info!(
+            "task {} is being dropped, waiting for it to shutdown",
+            self.task_name,
+        );
+        let _ = self.shutdown_sender.send(());
     }
 }

@@ -1,11 +1,11 @@
 use core::time::Duration;
 use ibc::core::ics24_host::identifier::PortId;
 use ibc_relayer::config::Config;
+use ibc_relayer::supervisor::{spawn_supervisor, SupervisorHandle};
 use std::thread::sleep;
 
 use crate::bootstrap::binary::channel::bootstrap_channel_with_chains;
 use crate::prelude::*;
-use crate::relayer::supervisor::{spawn_supervisor, SupervisorHandle};
 
 const CLIENT_EXPIRY: Duration = Duration::from_secs(20);
 
@@ -31,8 +31,8 @@ impl TestOverrides for ClientExpirationTest {
         &self,
         _config: &SharedConfig,
         _registry: &SharedRegistry<impl ChainHandle + 'static>,
-    ) -> Option<SupervisorHandle> {
-        None
+    ) -> Result<Option<SupervisorHandle>, Error> {
+        Ok(None)
     }
 }
 
@@ -44,7 +44,8 @@ impl BinaryChainTest for ClientExpirationTest {
     ) -> Result<(), Error> {
         let port = PortId::unsafe_new("transfer");
 
-        let _supervisor = spawn_supervisor(chains.config.clone(), chains.registry.clone());
+        let _supervisor =
+            spawn_supervisor(chains.config.clone(), chains.registry.clone(), None, false)?;
 
         let sleep_time = CLIENT_EXPIRY + Duration::from_secs(10);
 
