@@ -199,15 +199,17 @@ where
 
         info!("written chains environment to {}", env_path.display());
 
-        let _supervisor = self
-            .test
-            .get_overrides()
-            .spawn_supervisor(&chains.config, &chains.registry);
-
         let _drop_handle_a = DropChainHandle(chains.handle_a.clone());
         let _drop_handle_b = DropChainHandle(chains.handle_b.clone());
 
-        self.test.run(config, chains)?;
+        {
+            let _supervisor = self
+                .test
+                .get_overrides()
+                .spawn_supervisor(&chains.config, &chains.registry);
+
+            self.test.run(config, chains)?;
+        }
 
         Ok(())
     }

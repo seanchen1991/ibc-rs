@@ -58,37 +58,37 @@ pub fn detect_misbehavior_task<ChainA: ChainHandle + 'static, ChainB: ChainHandl
         "detect_misbehavior".to_string(),
         Some(Duration::from_millis(600)),
         move || -> Result<(), TaskError<TryRecvError>> {
-            let cmd = receiver.recv().map_err(|_| TaskError::Abort)?;
+            if let Ok(cmd) = receiver.try_recv() {
+                match cmd {
+                    WorkerCmd::IbcEvents { batch } => {
+                        trace!("[{}] worker received batch: {:?}", client, batch);
 
-            match cmd {
-                WorkerCmd::IbcEvents { batch } => {
-                    trace!("[{}] worker received batch: {:?}", client, batch);
+                        for event in batch.events {
+                            if let IbcEvent::UpdateClient(update) = event {
+                                debug!("[{}] client was updated", client);
 
-                    for event in batch.events {
-                        if let IbcEvent::UpdateClient(update) = event {
-                            debug!("[{}] client was updated", client);
-
-                            match client.detect_misbehaviour_and_submit_evidence(Some(update)) {
-                                MisbehaviourResults::ValidClient => {}
-                                MisbehaviourResults::VerificationError => {
-                                    // can retry in next call
-                                }
-                                MisbehaviourResults::EvidenceSubmitted(_) => {
-                                    // if evidence was submitted successfully then exit
-                                    return Err(TaskError::Abort);
-                                }
-                                MisbehaviourResults::CannotExecute => {
-                                    // skip misbehaviour checking if chain does not have support for it (i.e. client
-                                    // update event does not include the header)
-                                    return Err(TaskError::Abort);
+                                match client.detect_misbehaviour_and_submit_evidence(Some(update)) {
+                                    MisbehaviourResults::ValidClient => {}
+                                    MisbehaviourResults::VerificationError => {
+                                        // can retry in next call
+                                    }
+                                    MisbehaviourResults::EvidenceSubmitted(_) => {
+                                        // if evidence was submitted successfully then exit
+                                        return Err(TaskError::Abort);
+                                    }
+                                    MisbehaviourResults::CannotExecute => {
+                                        // skip misbehaviour checking if chain does not have support for it (i.e. client
+                                        // update event does not include the header)
+                                        return Err(TaskError::Abort);
+                                    }
                                 }
                             }
                         }
                     }
-                }
 
-                WorkerCmd::NewBlock { .. } => {}
-                WorkerCmd::ClearPendingPackets => {}
+                    WorkerCmd::NewBlock { .. } => {}
+                    WorkerCmd::ClearPendingPackets => {}
+                }
             }
 
             Ok(())

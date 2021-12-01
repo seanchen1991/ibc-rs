@@ -5,6 +5,7 @@
 
 use eyre::Report as Error;
 use std::process::Child;
+use tracing::info;
 
 /**
    A lightweight wrapper around std::process::Child to ensure that the
@@ -45,6 +46,7 @@ impl ChildProcess {
 
 impl Drop for ChildProcess {
     fn drop(&mut self) {
+        info!("dropping child process");
         if !self.waited {
             let _ = self.kill();
         }

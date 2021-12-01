@@ -4,7 +4,7 @@ use core::time::Duration;
 use crossbeam_channel::{bounded, Sender};
 use std::sync::{Arc, RwLock};
 use std::thread;
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 
 pub struct TaskHandle {
     task_name: String,
@@ -53,10 +53,6 @@ pub fn spawn_background_task<E: Display>(
         loop {
             match receiver.try_recv() {
                 Ok(()) => {
-                    info!(
-                        "received shutdown signal, shuttting down task {}",
-                        task_name
-                    );
                     break;
                 }
                 _ => match step_runner() {
@@ -83,6 +79,7 @@ pub fn spawn_background_task<E: Display>(
         }
 
         *write_stopped.write().unwrap() = true;
+        info!("task {} has terminated", task_name);
     });
 
     TaskHandle {
@@ -103,7 +100,7 @@ impl Drop for JoinHandle {
 
 impl Drop for TaskHandle {
     fn drop(&mut self) {
-        info!(
+        debug!(
             "task {} is being dropped, waiting for it to shutdown",
             self.task_name,
         );
