@@ -62,63 +62,158 @@ pub struct Supervisor<Chain: ChainHandle> {
     client_state_filter: FilterPolicy,
 }
 
-// pub fn spawn_batch_worker<Chain: ChainHandle + 'static>(
-//     supervisor: Arc<RwLock<Supervisor<Chain>>>
-// ) -> Result<TaskHandle, Error> {
-//     supervisor.write().unwrap().spawn_workers(SpawnMode::Startup);
+pub fn spawn_supervisor_tasks<Chain: ChainHandle + 'static>(
+    config: Arc<RwLock<Config>>,
+    registry: SharedRegistry<Chain>,
+    rest_rx: Option<rest::Receiver>,
+    cmd_rx: Receiver<SupervisorCmd>,
+    do_health_check: bool,
+) -> Result<Vec<TaskHandle>, Error> {
+    if do_health_check {
+        health_check(&config.read().unwrap(), &mut registry.write());
+    }
 
-//     let mut subscriptions = supervisor.write().unwrap().init_subscriptions()?;
+    let workers = Arc::new(RwLock::new(WorkerMap::new()));
+    let client_state_filter = Arc::new(RwLock::new(FilterPolicy::default()));
 
-//     let task = spawn_background_task(
-//         "supervisor_batch".to_string(),
-//         Some(Duration::from_millis(500)),
-//         move || -> Result<(), TaskError<Error>> {
-//             if let Some((chain, batch)) = try_recv_multiple(&mut subscriptions) {
-//                 supervisor.write().unwrap().handle_batch(chain.clone(), batch);
-//             }
+    spawn_context(
+        &config.read().unwrap(),
+        &mut registry.write(),
+        &mut client_state_filter.write().unwrap(),
+        &mut workers.write().unwrap(),
+        SpawnMode::Startup,
+    )
+    .spawn_workers();
 
-//             Ok(())
-//         });
+    let subscriptions = Arc::new(RwLock::new(init_subscriptions(
+        &config.read().unwrap(),
+        &mut registry.write(),
+    )?));
 
-//     Ok(task)
-// }
+    let batch_task = spawn_batch_worker(
+        config.clone(),
+        registry.clone(),
+        client_state_filter.clone(),
+        workers.clone(),
+        subscriptions.clone(),
+    );
 
-// pub fn spawn_cmd_worker<Chain: ChainHandle + 'static>(
-//     supervisor: Arc<RwLock<Supervisor<Chain>>>
-// ) -> TaskHandle {
-//     let cmd_rx = supervisor.read().unwrap().cmd_rx.clone();
-//     spawn_background_task(
-//         "supervisor_cmd".to_string(),
-//         Some(Duration::from_millis(500)),
-//         move || -> Result<(), TaskError<Error>> {
-//             if let Ok(cmd) = cmd_rx.try_recv() {
-//                 match cmd {
-//                     SupervisorCmd::UpdateConfig(update) => {
-//                         let effect = self.update_config(update);
+    let cmd_task = spawn_cmd_worker(
+        config.clone(),
+        registry.clone(),
+        client_state_filter,
+        workers.clone(),
+        subscriptions,
+        cmd_rx,
+    );
 
-//                         if let CmdEffect::ConfigChanged = effect {
-//                             match self.init_subscriptions() {
-//                                 Ok(subs) => {
-//                                     *subscriptions = subs;
-//                                 }
-//                                 Err(Error(ErrorDetail::NoChainsAvailable(_), _)) => (),
-//                                 Err(e) => return Err(e),
-//                             }
-//                         }
-//                     }
-//                     SupervisorCmd::DumpState(reply_to) => {
-//                         self.dump_state(reply_to);
-//                     }
-//                     SupervisorCmd::Stop(reply_to) => {
-//                         let _ = reply_to.send(());
-//                         return Ok(StepResult::Break);
-//                     }
-//                 }
-//             }
-//             Ok(())
-//         }
-//     )
-// }
+    let mut tasks = vec![batch_task, cmd_task];
+
+    if let Some(rest_rx) = rest_rx {
+        let rest_task = spawn_rest_worker(config, registry, workers, rest_rx);
+        tasks.push(rest_task);
+    }
+
+    Ok(tasks)
+}
+
+fn spawn_batch_worker<Chain: ChainHandle + 'static>(
+    config: Arc<RwLock<Config>>,
+    registry: SharedRegistry<Chain>,
+    client_state_filter: Arc<RwLock<FilterPolicy>>,
+    workers: Arc<RwLock<WorkerMap>>,
+    subscriptions: Arc<RwLock<Vec<(Chain, Subscription)>>>,
+) -> TaskHandle {
+    spawn_background_task(
+        "supervisor_batch".to_string(),
+        Some(Duration::from_millis(500)),
+        move || -> Result<(), TaskError<Error>> {
+            if let Some((chain, batch)) = try_recv_multiple(&subscriptions.read().unwrap()) {
+                handle_batch(
+                    &config.read().unwrap(),
+                    &mut registry.write(),
+                    &mut client_state_filter.write().unwrap(),
+                    &mut workers.write().unwrap(),
+                    chain.clone(),
+                    batch,
+                );
+            }
+
+            Ok(())
+        },
+    )
+}
+
+pub fn spawn_cmd_worker<Chain: ChainHandle + 'static>(
+    config: Arc<RwLock<Config>>,
+    registry: SharedRegistry<Chain>,
+    client_state_filter: Arc<RwLock<FilterPolicy>>,
+    workers: Arc<RwLock<WorkerMap>>,
+    subscriptions: Arc<RwLock<Vec<(Chain, Subscription)>>>,
+    cmd_rx: Receiver<SupervisorCmd>,
+) -> TaskHandle {
+    spawn_background_task(
+        "supervisor_cmd".to_string(),
+        Some(Duration::from_millis(500)),
+        move || -> Result<(), TaskError<Error>> {
+            if let Ok(cmd) = cmd_rx.try_recv() {
+                match cmd {
+                    SupervisorCmd::UpdateConfig(update) => {
+                        let effect = update_config(
+                            &mut config.write().unwrap(),
+                            &mut registry.write(),
+                            &mut workers.write().unwrap(),
+                            &mut client_state_filter.write().unwrap(),
+                            update,
+                        );
+
+                        if let CmdEffect::ConfigChanged = effect {
+                            let new_subscriptions =
+                                init_subscriptions(&config.read().unwrap(), &mut registry.write());
+                            match new_subscriptions {
+                                Ok(subs) => {
+                                    *subscriptions.write().unwrap() = subs;
+                                }
+                                Err(Error(ErrorDetail::NoChainsAvailable(_), _)) => (),
+                                Err(e) => return Err(TaskError::Fatal(e)),
+                            }
+                        }
+                    }
+                    SupervisorCmd::DumpState(reply_to) => {
+                        dump_state(&registry.read(), &workers.read().unwrap(), reply_to);
+                    }
+                    SupervisorCmd::Stop(reply_to) => {
+                        let _ = reply_to.send(());
+                        return Err(TaskError::Abort);
+                    }
+                }
+            }
+            Ok(())
+        },
+    )
+}
+
+pub fn spawn_rest_worker<Chain: ChainHandle + 'static>(
+    config: Arc<RwLock<Config>>,
+    registry: SharedRegistry<Chain>,
+    workers: Arc<RwLock<WorkerMap>>,
+    rest_rx: rest::Receiver,
+) -> TaskHandle {
+    spawn_background_task(
+        "supervisor_rest".to_string(),
+        Some(Duration::from_millis(500)),
+        move || -> Result<(), TaskError<Error>> {
+            handle_rest_requests(
+                &config.read().unwrap(),
+                &registry.read(),
+                &workers.read().unwrap(),
+                &rest_rx,
+            );
+
+            Ok(())
+        },
+    )
+}
 
 /// Returns `true` if the relayer should filter based on
 /// client state attributes, e.g., trust threshold.

@@ -453,7 +453,7 @@ impl<'a, Chain: ChainHandle + 'static> SpawnContext<'a, Chain> {
             });
 
             self.workers
-                .spawn(chain, counterparty_chain, &connection_object, &self.config)
+                .spawn(chain, counterparty_chain, &connection_object, self.config)
                 .then(|| {
                     debug!(
                         "spawning Connection worker: {}",
@@ -535,7 +535,7 @@ impl<'a, Chain: ChainHandle + 'static> SpawnContext<'a, Chain> {
                             chain.clone(),
                             counterparty_chain.clone(),
                             &path_object,
-                            &self.config,
+                            self.config,
                         )
                         .then(|| debug!("spawned Packet worker: {}", path_object.short_name()));
                 }
@@ -553,7 +553,7 @@ impl<'a, Chain: ChainHandle + 'static> SpawnContext<'a, Chain> {
             });
 
             self.workers
-                .spawn(chain, counterparty_chain, &channel_object, &self.config)
+                .spawn(chain, counterparty_chain, &channel_object, self.config)
                 .then(|| debug!("spawned Channel worker: {}", channel_object.short_name()));
         }
 

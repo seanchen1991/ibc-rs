@@ -20,15 +20,21 @@ pub struct WorkerMap {
     latest_worker_id: WorkerId,
 }
 
+impl Default for WorkerMap {
+    fn default() -> Self {
+        Self {
+            workers: HashMap::new(),
+            latest_worker_id: WorkerId::new(0),
+        }
+    }
+}
+
 impl WorkerMap {
     /// Create a new worker map, which will spawn workers with
     /// the given channel for sending messages back to the
     /// [`Supervisor`](crate::supervisor::Supervisor).
     pub fn new() -> Self {
-        Self {
-            workers: HashMap::new(),
-            latest_worker_id: WorkerId::new(0),
-        }
+        Self::default()
     }
 
     /// Returns `true` if there is a spawned [`Worker`] associated with the given [`Object`].
