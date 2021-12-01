@@ -7,6 +7,9 @@ use std::thread::sleep;
 use crate::bootstrap::binary::channel::bootstrap_channel_with_chains;
 use crate::prelude::*;
 
+// The cosmos ChainHandle handles requests in serial, and a refresh client
+// request may get blocked by other operations and cause the refresh to fail
+// if the expiry time is too short.
 const CLIENT_EXPIRY: Duration = Duration::from_secs(20);
 
 #[test]
@@ -56,10 +59,13 @@ impl BinaryChainTest for ClientExpirationTest {
 
         sleep(sleep_time);
 
-        // info!("Trying to bootstrap channel after client is expired");
+        // let _supervisor =
+        //     spawn_supervisor(chains.config.clone(), chains.registry.clone(), None, false)?;
+
+        info!("Trying to bootstrap channel after client is expired");
         bootstrap_channel_with_chains(&chains, &port, &port)?;
 
-        // crate::suspend();
-        Ok(())
+        crate::suspend();
+        // Ok(())
     }
 }

@@ -1,7 +1,7 @@
 use core::time::Duration;
 
 use crossbeam_channel::{Receiver, TryRecvError};
-use tracing::{debug, trace, warn};
+use tracing::{debug, trace};
 
 use ibc::events::IbcEvent;
 
@@ -25,9 +25,10 @@ pub fn spawn_refresh_client<ChainA: ChainHandle + 'static, ChainB: ChainHandle +
         move || -> Result<(), TaskError<ForeignClientError>> {
             let res = client.refresh().map_err(|e| {
                 if let ForeignClientErrorDetail::ExpiredOrFrozen(_) = e.detail() {
-                    warn!("failed to refresh client '{}': {}", client, e);
+                    TaskError::Fatal(e)
+                } else {
+                    TaskError::Ignore(e)
                 }
-                TaskError::Ignore(e)
             })?;
 
             if res.is_some() {
