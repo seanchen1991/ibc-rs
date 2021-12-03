@@ -220,10 +220,6 @@ pub fn spawn_cmd_worker<Chain: ChainHandle + 'static>(
                     SupervisorCmd::DumpState(reply_to) => {
                         dump_state(&registry.read(), &workers.read().unwrap(), reply_to);
                     }
-                    SupervisorCmd::Stop(reply_to) => {
-                        let _ = reply_to.send(());
-                        return Err(TaskError::Abort);
-                    }
                 }
             }
             Ok(())
