@@ -14,14 +14,14 @@ use crate::{event::monitor::EventBatch, object::Object};
 use super::error::WorkerError;
 use super::{WorkerCmd, WorkerId};
 
-pub struct WorkerTaskHandles {
+pub struct WorkerHandle {
     id: WorkerId,
     object: Object,
     tx: Sender<WorkerCmd>,
     task_handles: Vec<TaskHandle>,
 }
 
-impl WorkerTaskHandles {
+impl WorkerHandle {
     pub fn new(
         id: WorkerId,
         object: Object,
@@ -94,7 +94,7 @@ impl WorkerTaskHandles {
     }
 }
 
-impl fmt::Debug for WorkerTaskHandles {
+impl fmt::Debug for WorkerHandle {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("WorkerHandle")
             .field("id", &self.id)

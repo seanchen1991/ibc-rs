@@ -11,12 +11,12 @@ use crate::{
     telemetry,
 };
 
-use super::{spawn_worker_tasks, WorkerId, WorkerTaskHandles};
+use super::{spawn_worker_tasks, WorkerHandle, WorkerId};
 
 /// Manage the lifecycle of [`Worker`]s associated with [`Object`]s.
 #[derive(Debug)]
 pub struct WorkerMap {
-    workers: HashMap<Object, WorkerTaskHandles>,
+    workers: HashMap<Object, WorkerHandle>,
     latest_worker_id: WorkerId,
 }
 
@@ -93,7 +93,7 @@ impl WorkerMap {
     pub fn to_notify<'a>(
         &'a self,
         src_chain_id: &'a ChainId,
-    ) -> impl Iterator<Item = &'a WorkerTaskHandles> {
+    ) -> impl Iterator<Item = &'a WorkerHandle> {
         self.workers.iter().filter_map(move |(o, w)| {
             if o.notify_new_block(src_chain_id) {
                 Some(w)
@@ -113,7 +113,7 @@ impl WorkerMap {
         src: Chain,
         dst: Chain,
         config: &Config,
-    ) -> &WorkerTaskHandles {
+    ) -> &WorkerHandle {
         if self.workers.contains_key(&object) {
             &self.workers[&object]
         } else {
@@ -148,7 +148,7 @@ impl WorkerMap {
         dst: Chain,
         object: &Object,
         config: &Config,
-    ) -> WorkerTaskHandles {
+    ) -> WorkerHandle {
         telemetry!(worker, metric_type(object), 1);
 
         spawn_worker_tasks(
@@ -175,8 +175,8 @@ impl WorkerMap {
             .collect()
     }
 
-    /// List the [`WorkerTaskHandles`]s associated with the given chain.
-    pub fn workers_for_chain(&self, chain_id: &ChainId) -> Vec<&WorkerTaskHandles> {
+    /// List the [`WorkerHandle`]s associated with the given chain.
+    pub fn workers_for_chain(&self, chain_id: &ChainId) -> Vec<&WorkerHandle> {
         self.workers
             .iter()
             .filter_map(|(o, h)| o.for_chain(chain_id).then(|| h))

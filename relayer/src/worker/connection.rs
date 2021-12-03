@@ -23,7 +23,7 @@ pub fn spawn_connection_worker<ChainA: ChainHandle + 'static, ChainB: ChainHandl
 
     spawn_background_task(
         "connection_worker".to_string(),
-        Some(Duration::from_millis(500)),
+        Some(Duration::from_millis(200)),
         move || {
             if let Ok(cmd) = cmd_rx.try_recv() {
                 let result = match cmd {

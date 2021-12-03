@@ -201,31 +201,28 @@ impl<'a, Chain: ChainHandle + 'static> SpawnContext<'a, Chain> {
 
         let counterparty_chain_id = client.client_state.chain_id();
 
-        {
-            let config = &self.config;
+        if self.config.mode.clients.enabled {
+            let counterparty_chain = self.registry.get_or_spawn(&counterparty_chain_id);
 
-            let mode = &config.mode;
-
-            if mode.clients.enabled {
-                let counterparty_chain = self.registry.get_or_spawn(&counterparty_chain_id);
-
-                match counterparty_chain {
-                    Ok(counterparty_chain) => {
-                        // Spawn the client worker
-                        let client_object = Object::Client(Client {
-                            dst_client_id: client.client_id.clone(),
-                            dst_chain_id: chain.id(),
-                            src_chain_id: client.client_state.chain_id(),
-                        });
-                        self.workers
-                            .spawn(counterparty_chain, chain.clone(), &client_object, config)
-                            .then(|| {
-                                debug!("spawned Client worker: {}", client_object.short_name())
-                            });
-                    }
-                    Err(e) => {
-                        error!("error spawning counterparty chain: {}", e);
-                    }
+            match counterparty_chain {
+                Ok(counterparty_chain) => {
+                    // Spawn the client worker
+                    let client_object = Object::Client(Client {
+                        dst_client_id: client.client_id.clone(),
+                        dst_chain_id: chain.id(),
+                        src_chain_id: client.client_state.chain_id(),
+                    });
+                    self.workers
+                        .spawn(
+                            counterparty_chain,
+                            chain.clone(),
+                            &client_object,
+                            self.config,
+                        )
+                        .then(|| debug!("spawned Client worker: {}", client_object.short_name()));
+                }
+                Err(e) => {
+                    error!("error spawning counterparty chain: {}", e);
                 }
             }
         }

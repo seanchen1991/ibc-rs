@@ -16,7 +16,7 @@ mod error;
 pub use error::{RunError, WorkerError};
 
 mod handle;
-pub use handle::WorkerTaskHandles;
+pub use handle::WorkerHandle;
 
 mod cmd;
 pub use cmd::WorkerCmd;
@@ -57,7 +57,7 @@ pub fn spawn_worker_tasks<ChainA: ChainHandle + 'static, ChainB: ChainHandle + '
     id: WorkerId,
     object: Object,
     config: &Config,
-) -> WorkerTaskHandles {
+) -> WorkerHandle {
     let mut task_handles = Vec::new();
     let (cmd_tx, cmd_rx) = crossbeam_channel::unbounded();
 
@@ -101,14 +101,15 @@ pub fn spawn_worker_tasks<ChainA: ChainHandle + 'static, ChainB: ChainHandle + '
                     link.clone(),
                     packets_config.clear_on_start,
                     packets_config.clear_interval,
+                    path.clone(),
                 );
                 task_handles.push(packet_task);
 
-                let link_task = packet::spawn_link_worker(link);
+                let link_task = packet::spawn_link_worker(path.clone(), link);
                 task_handles.push(link_task);
             }
         }
     }
 
-    WorkerTaskHandles::new(id, object, cmd_tx, task_handles)
+    WorkerHandle::new(id, object, cmd_tx, task_handles)
 }
