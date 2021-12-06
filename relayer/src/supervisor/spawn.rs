@@ -288,7 +288,7 @@ impl<'a, Chain: ChainHandle + 'static> SpawnContext<'a, Chain> {
         // Apply the client state filter
         if self.client_filter_enabled() {
             match self.client_state_filter.control_connection_end_and_client(
-                &mut self.registry,
+                self.registry,
                 &chain_id,
                 &client.client_state,
                 &connection_end,

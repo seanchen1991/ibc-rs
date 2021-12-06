@@ -202,7 +202,7 @@ pub fn spawn_cmd_worker<Chain: ChainHandle + 'static>(
                             &mut registry.write(),
                             &mut workers.write().unwrap(),
                             &mut client_state_filter.write().unwrap(),
-                            update,
+                            *update,
                         );
 
                         if let CmdEffect::ConfigChanged = effect {
