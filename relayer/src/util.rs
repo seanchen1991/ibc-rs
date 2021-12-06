@@ -7,6 +7,7 @@ pub use recv_multiple::try_recv_multiple;
 pub mod bigint;
 pub mod diff;
 pub mod iter;
+pub mod lock;
 pub mod queue;
 pub mod retry;
 pub mod stream;

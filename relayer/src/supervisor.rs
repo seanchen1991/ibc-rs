@@ -89,8 +89,11 @@ impl SupervisorHandle {
     */
     pub fn shutdown(self) {
         for task in self.tasks {
-            task.shutdown_and_wait();
+            // Send the shutdown signals in parallel
+            task.shutdown();
         }
+        // Dropping the tasks will cause this to block until all tasks
+        // are terminated.
     }
 
     pub fn wait(self) {

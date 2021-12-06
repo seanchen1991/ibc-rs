@@ -190,6 +190,7 @@ impl WorkerMap {
 
             handle.shutdown_and_wait();
         }
+        // Drop handle automatically handles the waiting for tasks to terminate.
     }
 
     /// Get an iterator over the worker map's objects.
@@ -201,9 +202,18 @@ impl WorkerMap {
 
     pub fn shutdown(&mut self) {
         let workers = mem::take(&mut self.workers);
-        for worker in workers.into_values() {
-            worker.shutdown_and_wait();
+        for worker in workers.values() {
+            // Send shutdown signal to all tasks in parallel.
+            worker.shutdown();
         }
+    }
+}
+
+// Drop handle to send shutdown signals to background tasks in parallel
+// before waiting for all of them to terminate.
+impl Drop for WorkerMap {
+    fn drop(&mut self) {
+        self.shutdown()
     }
 }
 

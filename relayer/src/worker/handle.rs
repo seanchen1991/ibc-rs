@@ -1,4 +1,5 @@
 use core::fmt;
+use core::mem;
 use crossbeam_channel::Sender;
 use tracing::trace;
 
@@ -68,16 +69,27 @@ impl WorkerHandle {
             .map_err(WorkerError::send)
     }
 
-    pub fn shutdown_and_wait(self) {
-        for task in self.task_handles.into_iter() {
-            task.shutdown_and_wait()
+    /// Shutdown all worker tasks without waiting for them to terminate.
+    pub fn shutdown(&self) {
+        for task in self.task_handles.iter() {
+            task.shutdown()
         }
     }
 
+    /// Shutdown all worker tasks and wait for them to terminate
+    pub fn shutdown_and_wait(self) {
+        for task in self.task_handles.iter() {
+            // Send shutdown signal to all tasks in parallel.
+            task.shutdown()
+        }
+        // Drop handle automatically handles the waiting for tasks to terminate.
+    }
+
     /// Wait for the worker thread to finish.
-    pub fn join(self) {
+    pub fn join(mut self) {
+        let task_handles = mem::take(&mut self.task_handles);
         trace!(worker = %self.object.short_name(), "worker::handle: waiting for worker loop to end");
-        for task in self.task_handles.into_iter() {
+        for task in task_handles.into_iter() {
             task.join()
         }
         trace!(worker = %self.object.short_name(), "worker::handle: waiting for worker loop to end: done");
@@ -91,6 +103,14 @@ impl WorkerHandle {
     /// Get a reference to the worker's object.
     pub fn object(&self) -> &Object {
         &self.object
+    }
+}
+
+// Drop handle to send shutdown signals to background tasks in parallel
+// before waiting for all of them to terminate.
+impl Drop for WorkerHandle {
+    fn drop(&mut self) {
+        self.shutdown()
     }
 }
 
