@@ -14,6 +14,7 @@ use ibc::{
     Height,
 };
 
+use crate::util::lock::LockExt;
 use crate::util::task::{spawn_background_task, TaskError, TaskHandle};
 use crate::{
     chain::{handle::ChainHandle, HealthCheck},
@@ -46,8 +47,6 @@ use self::spawn::SpawnMode;
 
 type ArcBatch = Arc<event::monitor::Result<EventBatch>>;
 type Subscription = Receiver<ArcBatch>;
-
-pub type RwArc<T> = Arc<RwLock<T>>;
 
 /**
     A wrapper around the SupervisorCmd sender so that we can
@@ -111,23 +110,23 @@ pub fn spawn_supervisor_tasks<Chain: ChainHandle + 'static>(
     do_health_check: bool,
 ) -> Result<Vec<TaskHandle>, Error> {
     if do_health_check {
-        health_check(&config.read().unwrap(), &mut registry.write());
+        health_check(&config.acquire_read(), &mut registry.write());
     }
 
     let workers = Arc::new(RwLock::new(WorkerMap::new()));
     let client_state_filter = Arc::new(RwLock::new(FilterPolicy::default()));
 
     spawn_context(
-        &config.read().unwrap(),
+        &config.acquire_read(),
         &mut registry.write(),
-        &mut client_state_filter.write().unwrap(),
-        &mut workers.write().unwrap(),
+        &mut client_state_filter.acquire_write(),
+        &mut workers.acquire_write(),
         SpawnMode::Startup,
     )
     .spawn_workers();
 
     let subscriptions = Arc::new(RwLock::new(init_subscriptions(
-        &config.read().unwrap(),
+        &config.acquire_read(),
         &mut registry.write(),
     )?));
 
@@ -169,12 +168,12 @@ fn spawn_batch_worker<Chain: ChainHandle + 'static>(
         "supervisor_batch".to_string(),
         Some(Duration::from_millis(500)),
         move || -> Result<(), TaskError<Error>> {
-            if let Some((chain, batch)) = try_recv_multiple(&subscriptions.read().unwrap()) {
+            if let Some((chain, batch)) = try_recv_multiple(&subscriptions.acquire_read()) {
                 handle_batch(
-                    &config.read().unwrap(),
+                    &config.acquire_read(),
                     &mut registry.write(),
-                    &mut client_state_filter.write().unwrap(),
-                    &mut workers.write().unwrap(),
+                    &mut client_state_filter.acquire_write(),
+                    &mut workers.acquire_write(),
                     chain.clone(),
                     batch,
                 );
@@ -201,19 +200,19 @@ pub fn spawn_cmd_worker<Chain: ChainHandle + 'static>(
                 match cmd {
                     SupervisorCmd::UpdateConfig(update) => {
                         let effect = update_config(
-                            &mut config.write().unwrap(),
+                            &mut config.acquire_write(),
                             &mut registry.write(),
-                            &mut workers.write().unwrap(),
-                            &mut client_state_filter.write().unwrap(),
+                            &mut workers.acquire_write(),
+                            &mut client_state_filter.acquire_write(),
                             *update,
                         );
 
                         if let CmdEffect::ConfigChanged = effect {
                             let new_subscriptions =
-                                init_subscriptions(&config.read().unwrap(), &mut registry.write());
+                                init_subscriptions(&config.acquire_read(), &mut registry.write());
                             match new_subscriptions {
                                 Ok(subs) => {
-                                    *subscriptions.write().unwrap() = subs;
+                                    *subscriptions.acquire_write() = subs;
                                 }
                                 Err(Error(ErrorDetail::NoChainsAvailable(_), _)) => (),
                                 Err(e) => return Err(TaskError::Fatal(e)),
@@ -221,7 +220,7 @@ pub fn spawn_cmd_worker<Chain: ChainHandle + 'static>(
                         }
                     }
                     SupervisorCmd::DumpState(reply_to) => {
-                        dump_state(&registry.read(), &workers.read().unwrap(), reply_to);
+                        dump_state(&registry.read(), &workers.acquire_read(), reply_to);
                     }
                 }
             }
@@ -241,9 +240,9 @@ pub fn spawn_rest_worker<Chain: ChainHandle + 'static>(
         Some(Duration::from_millis(500)),
         move || -> Result<(), TaskError<Error>> {
             handle_rest_requests(
-                &config.read().unwrap(),
+                &config.acquire_read(),
                 &registry.read(),
-                &workers.read().unwrap(),
+                &workers.acquire_read(),
                 &rest_rx,
             );
 
