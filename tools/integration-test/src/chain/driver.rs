@@ -30,6 +30,11 @@ pub mod transfer;
 
 const COSMOS_HD_PATH: &str = "m/44'/118'/0'/0/0";
 
+pub struct ExecOutput {
+    pub stdout: String,
+    pub stderr: String,
+}
+
 /**
     A driver for interacting with a chain full nodes through command line.
 
@@ -156,7 +161,7 @@ impl ChainDriver {
        executed, so that users can manually re-run the commands by
        copying from the logs.
     */
-    pub fn exec(&self, args: &[&str]) -> Result<String, Error> {
+    pub fn exec(&self, args: &[&str]) -> Result<ExecOutput, Error> {
         debug!(
             "Executing command: {} {}",
             self.command_path,
@@ -166,10 +171,15 @@ impl ChainDriver {
         let output = Command::new(&self.command_path).args(args).output()?;
 
         if output.status.success() {
-            let message = str::from_utf8(&output.stdout)?.to_string();
-            trace!("command executed successfully with output: {}", message);
+            let stdout = str::from_utf8(&output.stdout)?.to_string();
+            let stderr = str::from_utf8(&output.stderr)?.to_string();
+            trace!(
+                "command executed successfully with stdout: {}, stderr: {}",
+                stdout,
+                stderr
+            );
 
-            Ok(message)
+            Ok(ExecOutput { stdout, stderr })
         } else {
             let message = str::from_utf8(&output.stderr)?.to_string();
             Err(eyre!(
@@ -238,7 +248,7 @@ impl ChainDriver {
        Add a wallet with the given ID to the full node's keyring.
     */
     pub fn add_wallet(&self, wallet_id: &str) -> Result<Wallet, Error> {
-        let seed_content = self.exec(&[
+        let output = self.exec(&[
             "--home",
             self.home_path.as_str(),
             "keys",
@@ -249,6 +259,13 @@ impl ChainDriver {
             "--output",
             "json",
         ])?;
+
+        // gaia6 somehow displays result in stderr instead of stdout
+        let seed_content = if output.stdout.is_empty() {
+            output.stderr
+        } else {
+            output.stdout
+        };
 
         let json_val: json::Value = json::from_str(&seed_content)?;
         let wallet_address = json_val
@@ -339,9 +356,10 @@ impl ChainDriver {
     */
     pub fn update_chain_config(
         &self,
+        file: &str,
         cont: impl FnOnce(&mut toml::Value) -> Result<(), Error>,
     ) -> Result<(), Error> {
-        let config1 = self.read_file("config/config.toml")?;
+        let config1 = self.read_file(&format!("config/{}", file))?;
 
         let mut config2 = toml::from_str(&config1)?;
 
@@ -372,6 +390,8 @@ impl ChainDriver {
                 &self.grpc_listen_address(),
                 "--rpc.laddr",
                 &self.rpc_listen_address(),
+                "--grpc-web.address",
+                &format!("localhost:{}", self.grpc_port + 1),
             ])
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
@@ -398,18 +418,20 @@ impl ChainDriver {
        Query for the balances for a given wallet address and denomination
     */
     pub fn query_balance(&self, wallet_id: &WalletAddress, denom: &Denom) -> Result<u64, Error> {
-        let res = self.exec(&[
-            "--node",
-            &self.rpc_listen_address(),
-            "query",
-            "bank",
-            "balances",
-            &wallet_id.0,
-            "--denom",
-            denom.0.as_str(),
-            "--output",
-            "json",
-        ])?;
+        let res = self
+            .exec(&[
+                "--node",
+                &self.rpc_listen_address(),
+                "query",
+                "bank",
+                "balances",
+                &wallet_id.0,
+                "--denom",
+                denom.0.as_str(),
+                "--output",
+                "json",
+            ])?
+            .stdout;
 
         let amount_str = json::from_str::<json::Value>(&res)?
             .get("amount")

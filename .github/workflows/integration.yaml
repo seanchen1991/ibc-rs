@@ -43,6 +43,8 @@ jobs:
       matrix:
         gaiad:
           - gaia4
+          - gaia5
+          - gaia6
     steps:
       - uses: actions/checkout@v2
       - uses: cachix/install-nix-action@v15
