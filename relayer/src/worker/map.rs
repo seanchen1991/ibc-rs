@@ -2,7 +2,7 @@ use alloc::collections::btree_map::BTreeMap as HashMap;
 use core::mem;
 
 use ibc::core::ics24_host::identifier::ChainId;
-use tracing::{debug, trace};
+use tracing::{debug, info, trace};
 
 use crate::{
     chain::handle::{ChainHandle, ChainHandlePair},
@@ -114,6 +114,7 @@ impl WorkerMap {
         dst: Chain,
         config: &Config,
     ) -> &WorkerHandle {
+        info!("get or spawn worker for object {:?}", object);
         if self.workers.contains_key(&object) {
             &self.workers[&object]
         } else {

@@ -90,6 +90,10 @@ impl BinaryChainTest for SupervisorTest {
         let port_a = tagged_transfer_port();
         let port_b = tagged_transfer_port();
 
+        std::thread::sleep(Duration::from_secs(5));
+
+        info!("performing init channel");
+
         let channel_id_b = init_channel(
             &chains.handle_a,
             &chains.handle_b,
