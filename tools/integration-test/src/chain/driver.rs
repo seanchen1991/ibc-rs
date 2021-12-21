@@ -77,6 +77,8 @@ pub struct ChainDriver {
     */
     pub grpc_port: u16,
 
+    pub grpc_web_port: u16,
+
     /**
        The port used for P2P. (Currently unused other than for setup)
     */
@@ -100,6 +102,7 @@ impl ChainDriver {
         home_path: String,
         rpc_port: u16,
         grpc_port: u16,
+        grpc_web_port: u16,
         p2p_port: u16,
     ) -> Result<Self, Error> {
         let command_version = get_chain_command_version(&command_path)?;
@@ -111,6 +114,7 @@ impl ChainDriver {
             home_path,
             rpc_port,
             grpc_port,
+            grpc_web_port,
             p2p_port,
         })
     }
@@ -358,20 +362,35 @@ impl ChainDriver {
        value is dropped.
     */
     pub fn start(&self) -> Result<ChildProcess, Error> {
+        let base_args = [
+            "--home",
+            &self.home_path,
+            "start",
+            "--pruning",
+            "nothing",
+            "--grpc.address",
+            &self.grpc_listen_address(),
+            "--rpc.laddr",
+            &self.rpc_listen_address(),
+        ];
+
+        // Gaia v6 requires the GRPC web port to be unique,
+        // but the argument is not available in earlier version
+        let extra_args = [
+            "--grpc-web.address",
+            &format!("localhost:{}", self.grpc_web_port),
+        ];
+
+        let args: Vec<&str> = if self.command_version.major >= 6 {
+            let mut list = base_args.to_vec();
+            list.extend_from_slice(&extra_args);
+            list
+        } else {
+            base_args.to_vec()
+        };
+
         let mut child = Command::new(&self.command_path)
-            .args(&[
-                "--home",
-                &self.home_path,
-                "start",
-                "--pruning",
-                "nothing",
-                "--grpc.address",
-                &self.grpc_listen_address(),
-                "--rpc.laddr",
-                &self.rpc_listen_address(),
-                "--grpc-web.address",
-                &format!("localhost:{}", self.grpc_port + 1),
-            ])
+            .args(&args)
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
