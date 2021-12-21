@@ -5,7 +5,7 @@
 use serde_json as json;
 use serde_yaml as yaml;
 
-use crate::error::Error;
+use crate::error::{handle_generic_error, Error};
 use crate::types::wallet::WalletAddress;
 
 use super::ChainDriver;
@@ -34,7 +34,7 @@ pub fn query_recipient_transactions(
     match json::from_str(&res) {
         Ok(res) => Ok(res),
         _ => {
-            let value: yaml::Value = yaml::from_str(&res)?;
+            let value: yaml::Value = yaml::from_str(&res).map_err(handle_generic_error)?;
             Ok(yaml_to_json_value(value)?)
         }
     }
@@ -50,6 +50,9 @@ pub fn query_recipient_transactions(
 // That way we can write generic functions that work with any of
 // the dynamic value types for testing purposes.
 fn yaml_to_json_value(value: yaml::Value) -> Result<json::Value, Error> {
-    let json_str = json::to_string(&value)?;
-    Ok(json::from_str(&json_str)?)
+    let json_str = json::to_string(&value).map_err(handle_generic_error)?;
+
+    let parsed = json::from_str(&json_str).map_err(handle_generic_error)?;
+
+    Ok(parsed)
 }

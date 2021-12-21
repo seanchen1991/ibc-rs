@@ -39,6 +39,8 @@ sha2 = "0.9.8"
 crossbeam-channel = "0.5.1"
 prost = { version = "0.9", default-features = false }
 prost-types = { version = "0.9", default-features = false }
+semver = "1.0.4"
+flex-error = "0.4.4"
 
 [features]
 default = []

@@ -13,9 +13,10 @@ use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use std::str;
 use toml;
-use tracing::{debug, trace};
+use tracing::debug;
 
-use crate::error::Error;
+use crate::chain::exec::{simple_exec, ExecOutput};
+use crate::error::{handle_generic_error, Error};
 use crate::ibc::denom::Denom;
 use crate::types::env::{EnvWriter, ExportEnv};
 use crate::types::process::ChildProcess;
@@ -29,11 +30,6 @@ pub mod tagged;
 pub mod transfer;
 
 const COSMOS_HD_PATH: &str = "m/44'/118'/0'/0/0";
-
-pub struct ExecOutput {
-    pub stdout: String,
-    pub stderr: String,
-}
 
 /**
     A driver for interacting with a chain full nodes through command line.
@@ -162,32 +158,7 @@ impl ChainDriver {
        copying from the logs.
     */
     pub fn exec(&self, args: &[&str]) -> Result<ExecOutput, Error> {
-        debug!(
-            "Executing command: {} {}",
-            self.command_path,
-            itertools::join(args, " ")
-        );
-
-        let output = Command::new(&self.command_path).args(args).output()?;
-
-        if output.status.success() {
-            let stdout = str::from_utf8(&output.stdout)?.to_string();
-            let stderr = str::from_utf8(&output.stderr)?.to_string();
-            trace!(
-                "command executed successfully with stdout: {}, stderr: {}",
-                stdout,
-                stderr
-            );
-
-            Ok(ExecOutput { stdout, stderr })
-        } else {
-            let message = str::from_utf8(&output.stderr)?.to_string();
-            Err(eyre!(
-                "command exited with error status {:?} and message: {}",
-                output.status.code(),
-                message
-            ))
-        }
+        simple_exec(&self.command_path, args)
     }
 
     /**
@@ -267,7 +238,8 @@ impl ChainDriver {
             output.stdout
         };
 
-        let json_val: json::Value = json::from_str(&seed_content)?;
+        let json_val: json::Value = json::from_str(&seed_content).map_err(handle_generic_error)?;
+
         let wallet_address = json_val
             .get("address")
             .ok_or_else(|| eyre!("expect address string field to be present in json result"))?
@@ -281,9 +253,9 @@ impl ChainDriver {
         let hd_path = HDPath::from_str(COSMOS_HD_PATH)
             .map_err(|e| eyre!("failed to create HDPath: {:?}", e))?;
 
-        let key_file: KeyFile = json::from_str(&seed_content)?;
+        let key_file: KeyFile = json::from_str(&seed_content).map_err(handle_generic_error)?;
 
-        let key = KeyEntry::from_key_file(key_file, &hd_path)?;
+        let key = KeyEntry::from_key_file(key_file, &hd_path).map_err(handle_generic_error)?;
 
         Ok(Wallet::new(wallet_id.to_string(), wallet_address, key))
     }
@@ -361,11 +333,11 @@ impl ChainDriver {
     ) -> Result<(), Error> {
         let config1 = self.read_file(&format!("config/{}", file))?;
 
-        let mut config2 = toml::from_str(&config1)?;
+        let mut config2 = toml::from_str(&config1).map_err(handle_generic_error)?;
 
         cont(&mut config2)?;
 
-        let config3 = toml::to_string_pretty(&config2)?;
+        let config3 = toml::to_string_pretty(&config2).map_err(handle_generic_error)?;
 
         self.write_file("config/config.toml", &config3)?;
 
@@ -433,14 +405,15 @@ impl ChainDriver {
             ])?
             .stdout;
 
-        let amount_str = json::from_str::<json::Value>(&res)?
+        let amount_str = json::from_str::<json::Value>(&res)
+            .map_err(handle_generic_error)?
             .get("amount")
             .ok_or_else(|| eyre!("expected amount field"))?
             .as_str()
             .ok_or_else(|| eyre!("expected string field"))?
             .to_string();
 
-        let amount = u64::from_str(&amount_str)?;
+        let amount = u64::from_str(&amount_str).map_err(handle_generic_error)?;
 
         Ok(amount)
     }
@@ -465,11 +438,11 @@ impl ChainDriver {
                 if amount == target_amount {
                     Ok(())
                 } else {
-                    Err(eyre!(
+                    Err(Error::generic(eyre!(
                         "current balance amount {} does not match the target amount {}",
                         amount,
                         target_amount
-                    ))
+                    )))
                 }
             },
         )?;

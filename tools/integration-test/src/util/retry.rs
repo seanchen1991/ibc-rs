@@ -32,9 +32,9 @@ pub fn assert_eventually_succeed<R>(
         }
     }
 
-    Err(eyre!(
+    Err(Error::generic(eyre!(
         "Expected task to eventually succeeed, but failed after {} attempts: {}",
         attempts,
         task_name
-    ))
+    )))
 }

@@ -60,7 +60,9 @@ impl BinaryChainTest for SupervisorTest {
                     .value()
                     .state_matches(&ConnectionState::Open)
                 {
-                    return Err(eyre!("expected connection end B to be in open state"));
+                    return Err(Error::generic(eyre!(
+                        "expected connection end B to be in open state"
+                    )));
                 }
 
                 let connection_id_a = connection_end_b
@@ -76,7 +78,9 @@ impl BinaryChainTest for SupervisorTest {
                     .value()
                     .state_matches(&ConnectionState::Open)
                 {
-                    return Err(eyre!("expected connection end A to be in open state"));
+                    return Err(Error::generic(eyre!(
+                        "expected connection end A to be in open state"
+                    )));
                 }
 
                 Ok(connection_id_a)
@@ -109,7 +113,9 @@ impl BinaryChainTest for SupervisorTest {
                 info!("channel b state: {:?}", state_b);
 
                 if !channel_end_b.value().state_matches(&ChannelState::Open) {
-                    return Err(eyre!("expected channel end A to be in open state"));
+                    return Err(Error::generic(eyre!(
+                        "expected channel end A to be in open state"
+                    )));
                 }
 
                 let channel_id_a =
@@ -123,7 +129,9 @@ impl BinaryChainTest for SupervisorTest {
                     query_channel_end(&chains.handle_a, &channel_id_a.as_ref(), &port_a.as_ref())?;
 
                 if !channel_end_a.value().state_matches(&ChannelState::Open) {
-                    return Err(eyre!("expected channel end B to be in open state"));
+                    return Err(Error::generic(eyre!(
+                        "expected channel end B to be in open state"
+                    )));
                 }
 
                 Ok(channel_id_a)
