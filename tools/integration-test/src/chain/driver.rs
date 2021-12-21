@@ -7,6 +7,7 @@ use core::time::Duration;
 use eyre::eyre;
 use ibc::core::ics24_host::identifier::ChainId;
 use ibc_relayer::keyring::{HDPath, KeyEntry, KeyFile};
+use semver::Version;
 use serde_json as json;
 use std::fs;
 use std::path::PathBuf;
@@ -16,6 +17,7 @@ use toml;
 use tracing::debug;
 
 use crate::chain::exec::{simple_exec, ExecOutput};
+use crate::chain::version::get_chain_command_version;
 use crate::error::{handle_generic_error, Error};
 use crate::ibc::denom::Denom;
 use crate::types::env::{EnvWriter, ExportEnv};
@@ -52,6 +54,8 @@ pub struct ChainDriver {
        The filesystem path to the Gaia CLI. Defaults to `gaiad`.
     */
     pub command_path: String,
+
+    pub command_version: Version,
 
     /**
        The ID of the chain.
@@ -90,22 +94,25 @@ impl ExportEnv for ChainDriver {
 
 impl ChainDriver {
     /// Create a new [`ChainDriver`]
-    pub fn new(
+    pub fn create(
         command_path: String,
         chain_id: ChainId,
         home_path: String,
         rpc_port: u16,
         grpc_port: u16,
         p2p_port: u16,
-    ) -> Self {
-        Self {
+    ) -> Result<Self, Error> {
+        let command_version = get_chain_command_version(&command_path)?;
+
+        Ok(Self {
             command_path,
+            command_version,
             chain_id,
             home_path,
             rpc_port,
             grpc_port,
             p2p_port,
-        }
+        })
     }
 
     /// Returns the full URL for the RPC address.

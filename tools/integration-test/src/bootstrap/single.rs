@@ -42,7 +42,7 @@ pub fn bootstrap_single_node(
     let denom = Denom(format!("coin{:x}", random_u32()));
     let initial_amount = random_u64_range(1_000_000_000_000, 9_000_000_000_000);
 
-    let chain_driver = builder.new_chain(prefix);
+    let chain_driver = builder.new_chain(prefix)?;
 
     chain_driver.initialize()?;
 

@@ -3,7 +3,7 @@ use std::process::Command;
 use std::str;
 use tracing::{debug, trace};
 
-use crate::error::{handle_generic_error, Error};
+use crate::error::{handle_exec_error, handle_generic_error, Error};
 
 pub struct ExecOutput {
     pub stdout: String,
@@ -17,7 +17,10 @@ pub fn simple_exec(command_path: &str, args: &[&str]) -> Result<ExecOutput, Erro
         itertools::join(args, " ")
     );
 
-    let output = Command::new(&command_path).args(args).output()?;
+    let output = Command::new(&command_path)
+        .args(args)
+        .output()
+        .map_err(handle_exec_error(command_path))?;
 
     if output.status.success() {
         let stdout = str::from_utf8(&output.stdout)

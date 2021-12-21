@@ -8,7 +8,7 @@ use ibc_relayer::connection::ConnectionError;
 use ibc_relayer::error::Error as RelayerError;
 use ibc_relayer::supervisor::error::Error as SupervisorError;
 use ibc_relayer::transfer::PacketError;
-use std::io::Error as IoError;
+use std::io::{Error as IoError, ErrorKind as IoErrorKind};
 
 define_error! {
     Error {
@@ -19,6 +19,11 @@ define_error! {
         Io
             [ TraceError<IoError> ]
             | _ | { "io error"},
+
+        CommandNotFound
+            { command: String }
+            [ TraceError<IoError> ]
+            | e | { format_args!("failed to execute command: {}. make sure it is available in $PATH", e.command) },
 
         Relayer
             [ RelayerError ]
@@ -44,6 +49,13 @@ define_error! {
 
 pub fn handle_generic_error(e: impl Into<Report>) -> Error {
     Error::generic(e.into())
+}
+
+pub fn handle_exec_error(command: &str) -> impl FnOnce(IoError) -> Error + '_ {
+    |e| match e.kind() {
+        IoErrorKind::NotFound => Error::command_not_found(command.to_string(), e),
+        _ => Error::io(e),
+    }
 }
 
 impl From<Report> for Error {
