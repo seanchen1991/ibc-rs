@@ -588,11 +588,7 @@ fn process_batch<Chain: ChainHandle + 'static>(
     let height = batch.height;
     let chain_id = batch.chain_id.clone();
 
-    info!("handling batch event {:?}", batch);
-
     let collected = collect_events(config, workers, &src_chain, batch);
-
-    info!("collected events {:?}", collected);
 
     // If there is a NewBlock event, forward this event first to any workers affected by it.
     if let Some(IbcEvent::NewBlock(new_block)) = collected.new_block {
