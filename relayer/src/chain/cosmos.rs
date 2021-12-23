@@ -2513,7 +2513,7 @@ fn can_recover_from_simulation_failure(e: &Error) -> bool {
 /// Determine whether the given error yielded by `tx_simulate`
 /// indicates that the current sequence number cached in Hermes
 /// may be out-of-sync with the full node's version of the s.n.
-fn mismatching_account_sequence_number(e: &Error) -> bool {
+pub fn mismatching_account_sequence_number(e: &Error) -> bool {
     use crate::error::ErrorDetail::*;
 
     match e.detail() {

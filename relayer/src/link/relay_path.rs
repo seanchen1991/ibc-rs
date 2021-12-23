@@ -522,7 +522,27 @@ impl<ChainA: ChainHandle, ChainB: ChainHandle> RelayPath<ChainA, ChainB> {
                     info!("[{}] success", self);
 
                     return Ok(reply);
-                }
+                },
+                Err(LinkError(error::LinkErrorDetail::Relayer(e), _)) => {
+                    if crate::chain::cosmos::mismatching_account_sequence_number(&e) {
+                        // This error also means we can retry
+                        error!("[{}] acct seq. mismatch error {}", self, e);
+                        if i + 1 == MAX_RETRIES {
+                            error!(
+                            "[{}] {}/{} retries exhausted. giving up",
+                            self,
+                            i + 1,
+                            MAX_RETRIES
+                        )
+                        } else {
+                            // If we haven't exhausted all retries, regenerate the op. data & retry
+                            match self.regenerate_operational_data(odata.clone()) {
+                                None => return Ok(S::Reply::empty()), // Nothing to retry
+                                Some(new_od) => odata = new_od,
+                            }
+                        }
+                    }
+                },
                 Err(LinkError(error::LinkErrorDetail::Send(e), _)) => {
                     // This error means we could retry
                     error!("[{}] error {}", self, e.event);
@@ -540,7 +560,7 @@ impl<ChainA: ChainHandle, ChainB: ChainHandle> RelayPath<ChainA, ChainB> {
                             Some(new_od) => odata = new_od,
                         }
                     }
-                }
+                },
                 Err(e) => {
                     // Unrecoverable error, propagate up the stack
                     return Err(e);
