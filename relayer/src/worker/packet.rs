@@ -80,7 +80,7 @@ pub fn spawn_packet_worker<ChainA: ChainHandle, ChainB: ChainHandle>(
 ) -> TaskHandle {
     spawn_background_task(
         format!("PacketWorker({})", link.a_to_b),
-        Some(Duration::from_millis(500)),
+        Some(Duration::from_millis(1000)),
         move || {
             link.a_to_b
                 .refresh_schedule()
