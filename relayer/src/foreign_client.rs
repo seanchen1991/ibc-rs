@@ -670,7 +670,7 @@ impl<DstChain: ChainHandle, SrcChain: ChainHandle> ForeignClient<DstChain, SrcCh
             // so that subsequent fetches can be fast.
             let cs_heights = self.consensus_state_heights()?;
 
-            // Iterate through the available consesnsus heights and find one
+            // Iterate through the available consensus heights and find one
             // that is lower than the target height.
             cs_heights
                 .into_iter()
@@ -1028,7 +1028,7 @@ impl<DstChain: ChainHandle, SrcChain: ChainHandle> ForeignClient<DstChain, SrcCh
             .dst_chain
             .query_consensus_states(QueryConsensusStatesRequest {
                 client_id: self.id.to_string(),
-                pagination: ibc_proto::cosmos::base::query::pagination::all(),
+                pagination: ibc_proto::cosmos::base::query::pagination::last_10(),
             })
             .map_err(|e| {
                 ForeignClientError::client_query(self.id().clone(), self.src_chain.id(), e)

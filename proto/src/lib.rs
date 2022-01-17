@@ -73,6 +73,13 @@ pub mod cosmos {
                         ..Default::default()
                     })
                 }
+                pub fn last_10() -> Option<PageRequest> {
+                    Some(PageRequest {
+                        limit: 10,
+                        reverse: true,
+                        ..Default::default()
+                    })
+                }
             }
         }
         pub mod reflection {
