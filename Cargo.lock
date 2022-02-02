@@ -1292,7 +1292,7 @@ dependencies = [
  "flex-error",
  "ibc-proto",
  "ics23",
- "modelator",
+ "modelator 0.4.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "prost",
  "prost-types",
  "safe-regex",
@@ -1328,6 +1328,7 @@ dependencies = [
  "ibc-relayer",
  "ibc-relayer-cli",
  "itertools",
+ "modelator 0.4.2 (git+https://github.com/informalsystems/modelator?branch=rnbguy/project-structure)",
  "prost",
  "prost-types",
  "rand 0.8.4",
@@ -1731,6 +1732,30 @@ name = "modelator"
 version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "698fbc4b1fd2af323ed1711664a873b332faa4dc740e0f810f40210573ba36fd"
+dependencies = [
+ "clap",
+ "clap_complete",
+ "directories",
+ "hex",
+ "lazy_static",
+ "nom",
+ "once_cell",
+ "rayon",
+ "regex",
+ "serde",
+ "serde_json",
+ "sha2 0.10.1",
+ "tempfile",
+ "thiserror",
+ "tracing",
+ "tracing-subscriber",
+ "ureq",
+]
+
+[[package]]
+name = "modelator"
+version = "0.4.2"
+source = "git+https://github.com/informalsystems/modelator?branch=rnbguy/project-structure#c2bc5386bcb63a3c7e283cdbf0db1c35c36adba1"
 dependencies = [
  "clap",
  "clap_complete",

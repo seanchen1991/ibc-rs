@@ -4,6 +4,8 @@ use crate::ibc::denom::derive_ibc_denom;
 use crate::prelude::*;
 use crate::util::random::random_u64_range;
 
+use modelator;
+
 #[test]
 fn test_ibc_transfer() -> Result<(), Error> {
     run_binary_channel_test(&IbcTransferTest)
