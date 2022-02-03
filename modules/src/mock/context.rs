@@ -3,13 +3,15 @@
 use crate::prelude::*;
 
 use alloc::collections::btree_map::BTreeMap;
+use alloc::sync::Arc;
 use core::cmp::min;
-
-use tracing::debug;
+use core::fmt::Debug;
+use core::time::Duration;
 
 use prost_types::Any;
 use sha2::Digest;
 use tendermint::Time;
+use tracing::debug;
 
 use crate::applications::ics20_fungible_token_transfer::context::Ics20Context;
 use crate::clients::ics07_tendermint::client_state::test_util::get_dummy_tendermint_client_state;
@@ -31,7 +33,7 @@ use crate::core::ics05_port::context::PortReader;
 use crate::core::ics05_port::error::Error as Ics05Error;
 use crate::core::ics23_commitment::commitment::CommitmentPrefix;
 use crate::core::ics24_host::identifier::{ChainId, ChannelId, ClientId, ConnectionId, PortId};
-use crate::core::ics26_routing::context::Ics26Context;
+use crate::core::ics26_routing::context::{Ics26Context, Module, Router};
 use crate::core::ics26_routing::handler::{deliver, dispatch};
 use crate::core::ics26_routing::msgs::Ics26Envelope;
 use crate::events::IbcEvent;
@@ -43,7 +45,6 @@ use crate::relayer::ics18_relayer::error::Error as Ics18Error;
 use crate::signer::Signer;
 use crate::timestamp::Timestamp;
 use crate::Height;
-use core::time::Duration;
 
 /// A context implementing the dependencies necessary for testing any IBC module.
 #[derive(Clone, Debug)]
@@ -117,6 +118,8 @@ pub struct MockContext {
 
     // Used by unordered channel
     packet_receipt: BTreeMap<(PortId, ChannelId, Sequence), Receipt>,
+
+    router: MockRouter,
 }
 
 /// Returns a MockContext with bare minimum initialization: no clients, no connections and no channels are
@@ -193,6 +196,7 @@ impl MockContext {
             packet_acknowledgement: Default::default(),
             connection_ids_counter: 0,
             channel_ids_counter: 0,
+            router: Default::default(),
         }
     }
 
@@ -530,7 +534,24 @@ impl MockContext {
     }
 }
 
-impl Ics26Context for MockContext {}
+#[derive(Clone, Debug, Default)]
+pub struct MockRouter(BTreeMap<String, Arc<dyn Module>>);
+
+impl Router for MockRouter {
+    type ModuleId = String;
+
+    fn get_route_mut(&mut self, module_id: &Self::ModuleId) -> Option<&mut (dyn Module + 'static)> {
+        self.0.get_mut(module_id).and_then(Arc::get_mut)
+    }
+}
+
+impl Ics26Context for MockContext {
+    type Router = MockRouter;
+
+    fn router(&mut self) -> &mut Self::Router {
+        &mut self.router
+    }
+}
 
 impl Ics20Context for MockContext {}
 
