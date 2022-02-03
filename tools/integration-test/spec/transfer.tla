@@ -4,8 +4,8 @@ EXTENDS TLC, Sequences, typedefs, Integers
 CONSTANTS
     \* @type: Set(CHAIN_ID);
     CHAIN_IDS,
-    \* @type: Set(ACCOUNT_ID);
-    ACCOUNT_IDS,
+    \* @type: ACCOUNT_ID;
+    N_INITIAL_ACCOUNTS,
     \* @type: PORT_ID;
     ICS20_PORT,
     \* @type: Int;
@@ -18,6 +18,11 @@ VARIABLES
     action,
     \* @type: [ name: Str ];
     outcome
+
+\* @type: () => Set(ACCOUNT_ID);
+ACCOUNT_IDS == 1..N_INITIAL_ACCOUNTS
+
+Reserve == 0
 
 NullAction == "Null"
 LocalTransferAction == "LocalTransfer"
@@ -55,7 +60,7 @@ Genesis(chainId) == [
     channel |-> [c \in {} |-> DummyChannel],
     activeChannels |-> {},
 
-    bank |-> [a \in ACCOUNT_IDS \union {"reserve"} |-> [d \in {chainId} |-> IF a = "reserve" THEN TOTAL_SUPPLY ELSE 0]],
+    bank |-> [a \in ACCOUNT_IDS \union {Reserve} |-> [d \in {chainId} |-> IF a = Reserve THEN TOTAL_SUPPLY ELSE 0]],
     supply |-> [d \in {chainId} |-> TOTAL_SUPPLY],
 
     localPackets |-> [
@@ -74,7 +79,8 @@ Genesis(chainId) == [
     ],
 
     nextChannelId |-> 0,
-    nextPacketId |-> 0
+    nextPacketId |-> 0,
+    nextAccountId |-> N_INITIAL_ACCOUNTS + 1
 ]
 
 \* @type: (BANK, DENOM_ID) => Int;
@@ -122,7 +128,7 @@ LocalTransfer(chain, source, target, denom, amount) ==
 \* @type: () => Bool;
 LocalTransferNext ==
     \E chainId \in CHAIN_IDS:
-        \E source, target \in ACCOUNT_IDS \union {"reserve"}:
+        \E source, target \in ACCOUNT_IDS \union {Reserve}:
             source /= target /\
             \E amount \in 1..10:
                 LET
@@ -158,11 +164,6 @@ ExistsChannelBetween(chain1Id, chain2Id) ==
         /\ channelId1 \in chain1.activeChannels
         /\ channelId2 \in chain2.activeChannels
 
-\* @type: (CHANNEL_ID) => ACCOUNT_ID;
-GenerateEscrowAccount(channelId) ==
-    "TODO_CHANNEL_STRING"
-    \* ToString(<<"channel-", channelId>>)
-
 \* @type: (CHAIN, CHAIN) => CHAIN;
 AddICS20Channel(sourceChain, targetChain) ==
     LET
@@ -170,7 +171,7 @@ AddICS20Channel(sourceChain, targetChain) ==
     targetChannelId == targetChain.nextChannelId
     sourceEndPoint == [chainId |-> sourceChain.id, portId |-> sourceChain.ics20.portId, channelId |-> sourceChannelId]
     targetEndPoint == [chainId |-> targetChain.id, portId |-> targetChain.ics20.portId, channelId |-> targetChannelId]
-    escrowAccount == GenerateEscrowAccount(sourceChannelId)
+    escrowAccount == sourceChain.nextAccountId
     IN
     [
         sourceChain EXCEPT
@@ -186,7 +187,8 @@ AddICS20Channel(sourceChain, targetChain) ==
             !.channel = AddOrUpdateEntry(@, targetChain.id, sourceChannelId)
         ],
         !.bank = AddOrUpdateEntry(@, escrowAccount, [d \in {} |-> 0]),
-        !.nextChannelId = @ + 1
+        !.nextChannelId = @ + 1,
+        !.nextAccountId = @ + 1
     ]
 
 \* @type: () => Bool;
