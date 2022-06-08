@@ -1,6 +1,6 @@
 ---
 id: h25di
-name: ibc-rs Architecture & Folder Structure
+name: ibc-rs  Folder Structure & Layout
 file_version: 1.0.2
 app_version: 0.8.8-0
 ---
