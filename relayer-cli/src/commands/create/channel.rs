@@ -97,10 +97,7 @@ pub struct CreateChannelCommand {
     )]
     new_client_connection: bool,
 
-    #[clap(
-        long,
-        help = "Skip new_client_connection confirmation"
-    )]
+    #[clap(long, help = "Skip new_client_conn confirmation")]
     yes: bool,
 }
 
@@ -113,8 +110,7 @@ impl Runnable for CreateChannelCommand {
                     if self.new_client_connection {
                         if self.yes {
                             self.run_using_new_connection(chain_b);
-                        }
-                        else {
+                        } else {
                             match Confirm::new()
                                 .with_prompt(format!(
                                     "{}: {}\n{}: {}",
@@ -142,13 +138,15 @@ impl Runnable for CreateChannelCommand {
                         }
                     } else {
                         Output::error(
-                                "The `--new-client-connection` flag is required if invoking with `--chain-b`".to_string()
-                            )
-                            .exit();
+                            "The `--new-client-conn` flag is required if invoking with `--b-chain`"
+                                .to_string(),
+                        )
+                        .exit();
                     }
                 }
-                None => Output::error("Missing one of `<chain-b>` or `<connection-a>`".to_string())
-                    .exit(),
+                None => {
+                    Output::error("Missing one of `<b-chain>` or `<a-conn>`".to_string()).exit()
+                }
             },
         }
     }
