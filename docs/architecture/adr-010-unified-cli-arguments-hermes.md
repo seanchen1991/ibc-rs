@@ -35,9 +35,9 @@ The following commands are implemented, with the binary name `hermes` often omit
 * `update client --host-chain <HOST_CHAIN_ID> --client <CLIENT_ID>`
     * Optional: `[--height <REFERENCE_HEIGHT>] [--trusted-height <REFERENCE_TRUSTED_HEIGHT>]`
 
-* `upgrade client --host-chain <HOST_CHAIN_ID> --client <CLIENT_ID>`
+* `upgrade client --host-chain <HOST_CHAIN_ID> --client <CLIENT_ID> --upgrade-height <REFERENCE_UPGRADE_HEIGHT>`
 
-* `upgrade clients --reference-chain <REFERENCE_CHAIN_ID>`
+* `upgrade clients --reference-chain <REFERENCE_CHAIN_ID> --upgrade-height <REFERENCE_UPGRADE_HEIGHT>`
     * Optional: `[--host-chain <HOST_CHAIN_ID>]`
 
 ### Create a connection
@@ -148,9 +148,9 @@ __Packet__
 
 * `query packet pending --chain <CHAIN_ID> --port <PORT_ID> --channel <CHANNEL_ID>`
 
-* `query packet unreceived-acks --chain <CHAIN_ID> --port <PORT_ID> --channel <CHANNEL_ID>`
+* `query packet pending-acks --chain <CHAIN_ID> --port <PORT_ID> --channel <CHANNEL_ID>`
 
-* `query packet unreceived-packets --chain <CHAIN_ID> --port <PORT_ID> --channel <CHANNEL_ID>`
+* `query packet pending-sends --chain <CHAIN_ID> --port <PORT_ID> --channel <CHANNEL_ID>`
 
 __Transfer__
 
